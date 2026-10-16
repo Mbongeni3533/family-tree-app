@@ -1,0 +1,39 @@
+{
+  "name": "family-tree-frontend",
+  "version": "1.0.0",
+  "description": "Family Tree Dashboard Frontend",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --ext .tsx,.ts",
+    "format": "prettier --write src/**/*.tsx src/**/*.ts"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.13.0",
+    "@emotion/styled": "^11.13.0",
+    "@headlessui/react": "^1.7.17",
+    "@heroicons/react": "^2.2.0",
+    "axios": "^1.7.2",
+    "lucide-react": "^0.435.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.24.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^5.0.3",
+    "@types/lodash": "^4.14.27",
+    "@typescript-eslint/eslint-plugin": "^8.2.0",
+    "@typescript-eslint/parser": "^8.2.0",
+    "eslint": "^9.13.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.37.1",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.5.2",
+    "vite": "^5.3.4"
+  }
+}

@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String        @id @default(cuid())
+  email         String        @unique
+  password      String?
+  name          String?
+  invitationToken String?     @unique
+  invitedAt     DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  familyMembers FamilyMember[]
+}
+
+model FamilyMember {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName   String
+  lastName    String
+  birthDate   DateTime?
+  deathDate   DateTime?
+  gender      String?
+  relationship String
+  notes       String?
+  photoUrl    String?
+  parentId    String?   // For linking to parent in tree
+  parent      FamilyMember? @relation("ParentChild", fields: [parentId], references: [id])
+  children    FamilyMember[] @relation("ParentChild")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([parentId])
+}
