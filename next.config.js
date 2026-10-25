@@ -1,4 +1,29 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-module.exports = nextConfig
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  background: #020617;
+}
+
+a {
+  text-decoration: none;
+}
+button,
+input {
+  font: inherit;
+}

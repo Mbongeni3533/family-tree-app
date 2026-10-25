@@ -1,14 +1,19 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+import type { Metadata } from 'next'
+import './globals.css'
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+export const metadata: Metadata = {
+  title: 'Family Tree',
+  description: 'Invite-only family tree network',
 }
 
-body {
-  font-family: system-ui, -apple-system, sans-serif;
-  background: #f9fafb;
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <html lang="en">
+      <body className="min-h-screen bg-slate-950 text-white antialiased">{children}</body>
+    </html>
+  )
 }
