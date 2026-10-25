@@ -11,7 +11,7 @@ export default function HomePage() {
   useEffect(() => {
     const loadUser = async () => {
       const { data, error } = await supabase.auth.getUser()
-      if (!error) {
+      if (!error && data.user) {
         setUser(data.user)
       }
       setLoading(false)
@@ -44,6 +44,7 @@ export default function HomePage() {
 
           {user ? (
             <button
+              type="button"
               onClick={handleSignOut}
               className="rounded-lg bg-white px-4 py-2 font-medium text-slate-900 transition hover:bg-slate-200"
             >
@@ -61,11 +62,11 @@ export default function HomePage() {
 
         <section className="grid gap-8 lg:grid-cols-2">
           <div className="rounded-3xl border border-white/10 bg-white/5 p-8">
-            <p className="text-sm uppercase tracking-[0.22em] text-slate-300">Foundation</p>
-            <h2 className="mt-4 text-4xl font-bold">Supabase-backed family tree app</h2>
+            <p className="text-sm uppercase tracking-[0.22em] text-slate-300">Founder flow</p>
+            <h2 className="mt-4 text-4xl font-bold">Create a shared family network</h2>
             <p className="mt-4 max-w-xl text-slate-300">
-              This is the foundation for the invite-only family network described in the testing checklist.
-              Authentication, sessions, and access flow are now in place.
+              This version is built around Supabase-backed networks, single-use invites, founder ownership,
+              and relative claiming. The founder creates the tree, adds a card, and sends an invite for one person.
             </p>
 
             {loading ? (
@@ -87,6 +88,12 @@ export default function HomePage() {
                   >
                     Privacy
                   </Link>
+                  <Link
+                    href="/terms"
+                    className="rounded-lg border border-white/10 px-4 py-2 font-medium text-white transition hover:bg-white/5"
+                  >
+                    Terms
+                  </Link>
                 </div>
               </div>
             ) : (
@@ -104,14 +111,13 @@ export default function HomePage() {
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-slate-900 p-8">
-            <p className="text-sm uppercase tracking-[0.22em] text-slate-400">Current implementation status</p>
+            <p className="text-sm uppercase tracking-[0.22em] text-slate-400">Network rules</p>
             <ul className="mt-6 space-y-4 text-slate-200">
-              <li>✓ Supabase client and auth session wiring</li>
-              <li>✓ sign-in and sign-up screens</li>
-              <li>✓ home screen and access flow</li>
-              <li>✓ privacy and terms landing pages</li>
-              <li>→ database schema and tree permissions next</li>
-              <li>→ invite links and founder/relative rules next</li>
+              <li>✓ Founder creates the network and adds their own first card.</li>
+              <li>✓ Invite links are created for one unclaimed card and are single-use.</li>
+              <li>✓ A relative can claim the card, join the network, and add more people.</li>
+              <li>✓ Creator-owned cards cannot be edited by other members.</li>
+              <li>✓ The founder can hide or dismiss a reported card.</li>
             </ul>
           </div>
         </section>
