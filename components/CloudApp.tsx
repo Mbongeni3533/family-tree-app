@@ -96,19 +96,32 @@ function Network({ session }: { session: Session }) {
   const startAdd = (p: { asParentOf?: string; parentId?: string; spouseIds?: string[] }) => { setPrefill(p); setMode('add') }
   const prefillTitle = prefill?.asParentOf ? 'Add a parent' : prefill?.parentId ? 'Add a child' : prefill?.spouseIds ? 'Add a partner' : 'Add a person'
 
-  // Candidates for the "link instead" picker and for duplicate warnings. The
-  // picker itself only appears when the form was opened from a relationship
-  // button, because only then is there a relation to apply.
+  // Candidates for the "link instead" picker and for duplicate warnings.
+  // People who already hold that relationship are left out: picking them can
+  // only produce an invalid write (e.g. the same person as both parents).
   const visibleMembers = members.filter(m => !m.hidden)
-  const linkCandidates = !prefill
-    ? visibleMembers
-    : prefill.asParentOf
-      ? visibleMembers.filter(m => m.id !== prefill.asParentOf)
-      : prefill.parentId
-        ? visibleMembers.filter(m => m.id !== prefill.parentId)
-        : prefill.spouseIds?.length
-          ? visibleMembers.filter(m => !prefill.spouseIds!.includes(m.id))
-          : visibleMembers
+  const linkCandidates = (() => {
+    if (!prefill) return visibleMembers
+
+    if (prefill.asParentOf) {
+      const child = members.find(m => m.id === prefill.asParentOf)
+      const already = new Set([child?.parentId, child?.parent2Id].filter((id): id is string => !!id))
+      return visibleMembers.filter(m => m.id !== prefill.asParentOf && !already.has(m.id))
+    }
+
+    if (prefill.parentId) {
+      const parent = prefill.parentId
+      return visibleMembers.filter(m => m.id !== parent && m.parentId !== parent && m.parent2Id !== parent)
+    }
+
+    if (prefill.spouseIds?.length) {
+      const anchor = members.find(m => m.id === prefill.spouseIds![0])
+      const partners = new Set(anchor?.spouseIds ?? [])
+      return visibleMembers.filter(m => m.id !== anchor?.id && !partners.has(m.id))
+    }
+
+    return visibleMembers
+  })()
 
   const linkExisting = (existingId: string) => run(async () => {
     const existing = members.find(m => m.id === existingId)
@@ -117,6 +130,10 @@ function Network({ session }: { session: Session }) {
     if (prefill?.asParentOf) {
       const child = members.find(m => m.id === prefill.asParentOf)
       if (!child) throw new Error('That card no longer exists')
+      if (child.parentId === existingId || child.parent2Id === existingId) {
+        setNotice(`${existing.name} is already recorded as a parent of ${child.name}.`)
+        setMode('view'); setPrefill(null); return
+      }
       if (child.parentId && child.parent2Id) throw new Error(`${child.name} already has two parents`)
       await cloud.updatePerson(child, {
         ...child,
@@ -125,6 +142,11 @@ function Network({ session }: { session: Session }) {
       })
       setNotice(`Linked ${existing.name} as a parent of ${child.name}.`)
     } else if (prefill?.parentId) {
+      if (existing.parentId === prefill.parentId || existing.parent2Id === prefill.parentId) {
+        const anchorName = members.find(m => m.id === prefill.parentId)?.name ?? 'that person'
+        setNotice(`${existing.name} is already recorded as a child of ${anchorName}.`)
+        setMode('view'); setPrefill(null); return
+      }
       if (existing.parentId && existing.parent2Id) throw new Error(`${existing.name} already has two parents`)
       await cloud.updatePerson(existing, {
         ...existing,

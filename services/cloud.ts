@@ -33,7 +33,14 @@ export function rowsToMembers(people: PersonRow[], marriages: MarriageRow[]): Fa
   }))
 }
 
-const must = <T,>(r: { data: T; error: { message: string } | null }): T => { if (r.error) throw new Error(r.error.message); return r.data }
+// Turns the database's constraint names into something a person can act on.
+const friendlyError = (message: string) => {
+  if (message.includes('people_check1')) return 'That person is already recorded as the other parent of this card.'
+  if (message.includes('people_check')) return 'A person cannot be their own parent.'
+  return message.replace(/^CONFLICT:\s*/, '')
+}
+
+const must = <T,>(r: { data: T; error: { message: string } | null }): T => { if (r.error) throw new Error(friendlyError(r.error.message)); return r.data }
 
 export async function myNetwork(): Promise<{ id: string; name: string; role: string } | null> {
   const rows = must(await getClient().from('network_members').select('role, networks(id, name)')) as unknown as { role: string; networks: { id: string; name: string } }[]
@@ -106,7 +113,7 @@ export async function updatePerson(prev: FamilyMember, m: FamilyMember) {
     p_parent2: m.parent2Id ?? null,
     p_spouses: m.spouseIds ?? [],
   })
-  if (error) throw new Error(error.message.replace(/^CONFLICT:\s*/, ''))
+  if (error) throw new Error(friendlyError(error.message))
 }
 
 export const deletePerson = async (id: string) => { const { error } = await getClient().from('people').delete().eq('id', id); if (error) throw new Error(error.message) }
