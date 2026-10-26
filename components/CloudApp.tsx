@@ -68,6 +68,8 @@ function Network({ session }: { session: Session }) {
   const me = members.find(m => m.claimedBy === uid)
   const mine = (m: FamilyMember) => m.createdBy === uid
   const canEdit = (m: FamilyMember) => m.createdBy === uid || m.claimedBy === uid
+  // A deceased person cannot claim a card, so they never need an invite.
+  const invitable = (m: FamilyMember) => mine(m) && !m.claimedBy && !m.deceased
   const filtered = useMemo(() => members.filter(m => !m.hidden && m.name.toLowerCase().includes(q.toLowerCase()) && (gender === 'all' || m.gender === gender)), [members, q, gender])
 
   if (net === undefined) return <main className="min-h-screen bg-[#0b0b0c] p-8 text-[#9a917c]">{err ?? 'Loading…'}</main>
@@ -158,12 +160,19 @@ function Network({ session }: { session: Session }) {
                   </p>
                   {detail.residence && <p className="text-sm text-[#9a917c]">Residential area: {detail.residence}</p>}
                   {detail.notes && <p className="text-sm text-[#e6dfc8]">{detail.notes}</p>}
-                  <p className="text-xs text-[#7a725f]">Entered by {creatorLabel} · {detail.claimedBy ? (detail.claimedBy === uid ? 'this is you' : 'claimed by the person themselves') : 'not yet claimed'}{detail.hidden ? ' · HIDDEN' : ''}</p>
+                  <p className="text-xs text-[#7a725f]">
+                    Entered by {creatorLabel} · {detail.deceased
+                      ? 'deceased — no invite needed'
+                      : detail.claimedBy
+                        ? (detail.claimedBy === uid ? 'this is you' : 'claimed by the person themselves')
+                        : 'not yet claimed'}
+                    {detail.hidden ? ' · HIDDEN' : ''}
+                  </p>
                   <div className="flex flex-wrap gap-2 pt-2">
                     {canEdit(detail) && <button className={btn} onClick={() => setMode('edit')}>Edit</button>}
                     {mine(detail) && <button className={btn} onClick={() => { if (window.confirm(`Delete ${detail.name}? This cannot be undone.`)) run(async () => { await cloud.deletePerson(detail.id); setSelected(null); await reload() }) }}>Delete</button>}
-                    {mine(detail) && !detail.claimedBy && <button className={btn} onClick={() => run(async () => { setLink(`${window.location.origin}/join?token=${await cloud.createInvite(detail.id)}`) })}>Invite link</button>}
-                    {mine(detail) && !detail.claimedBy && !me && <button className={btn} onClick={() => run(async () => { await cloud.claimPerson(detail.id); await reload() })}>This is me</button>}
+                    {invitable(detail) && <button className={btn} onClick={() => run(async () => { setLink(`${window.location.origin}/join?token=${await cloud.createInvite(detail.id)}`) })}>Invite link</button>}
+                    {invitable(detail) && !me && <button className={btn} onClick={() => run(async () => { await cloud.claimPerson(detail.id); await reload() })}>This is me</button>}
                     {!mine(detail) && <button className={btn} onClick={() => { const r = window.prompt('Why are you flagging this entry? (the founder will review it)'); if (r && r.trim().length >= 3) run(async () => { await cloud.flagPerson(net.id, detail.id, r.trim()); window.alert('Flag sent to the founder.') }) }}>Flag</button>}
                   </div>
 
@@ -200,8 +209,9 @@ function Network({ session }: { session: Session }) {
                   <p className="text-[#9a917c]">Add a relative’s card, open it, press “Invite link” and send it to them. They create an account, claim that card, add their own family and invite the next relatives.</p>
                 </div>
                 <div>
-                  <h3 className="mb-2 font-semibold">Cards you can still invite ({members.filter(m => mine(m) && !m.claimedBy).length})</h3>
-                  {members.filter(m => mine(m) && !m.claimedBy).map(m => <button key={m.id} className={btn + ' mr-2 mb-2'} onClick={() => { setLink(null); setSelected(m); setMode('view'); setView('tree') }}>{m.name}</button>)}
+                  <h3 className="mb-2 font-semibold">Cards you can still invite ({members.filter(invitable).length})</h3>
+                  {members.filter(invitable).map(m => <button key={m.id} className={btn + ' mr-2 mb-2'} onClick={() => { setLink(null); setSelected(m); setMode('view'); setView('tree') }}>{m.name}</button>)}
+                  <p className="mt-2 text-xs text-[#7a725f]">Cards marked deceased are not listed: there is nobody to claim them.</p>
                 </div>
                 {isFounder ? (
                   <div>
