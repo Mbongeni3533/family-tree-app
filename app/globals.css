@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+:root { --ll-bg:#0b0b0c; --ll-surface:#14110a; --ll-border:#2a2418; --ll-gold:#d4af37; --ll-gold-light:#f0cf65; --ll-text:#f5f0e1; --ll-muted:#9a917c; }
+body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: var(--ll-bg); color: var(--ll-text); }
+input, select, textarea { background:#0b0b0c; color:var(--ll-text); }
+input::placeholder, textarea::placeholder { color:#6b6452; }
+.gold-text { background: linear-gradient(90deg,#f0cf65,#d4af37,#b8912a); -webkit-background-clip:text; background-clip:text; color:transparent; }

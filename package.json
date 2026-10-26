@@ -1,21 +1,32 @@
 {
-  "name": "family-tree-app",
-  "version": "1.0.0",
-  "description": "Family Tree Application with Invitation-Only Access",
-  "scripts": {
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "server": "cd backend && npm run dev",
-    "client": "cd frontend && npm run dev",
-    "build": "npm run build --workspaces",
-    "start": "npm run start --workspaces",
-    "lint": "cd backend && npm run lint && cd ../frontend && npm run lint"
-  },
-  "workspaces": [
-    "backend",
-    "frontend"
-  ],
+  "name": "family-tree",
+  "version": "0.1.0",
   "private": true,
-  "keywords": ["family-tree", "genealogy", "dashboard"],
-  "author": "Mbongeni J. Shongwe",
-  "license": "MIT"
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
+    "next": "16.3.8",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.8",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  },
+  "description": "A modern web application for building and visualizing your family tree using Next.js, React, and TypeScript.",
+  "main": "index.js",
+  "keywords": []
 }

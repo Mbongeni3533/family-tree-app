@@ -1,182 +1,99 @@
-# Family Tree Application
+# Family Tree App
 
-A genealogy management web application with invitation-only access control.
+A modern web application for building and visualizing your family tree using Next.js, React, and TypeScript.
 
 ## Features
 
-- **Invitation-Only Registration**: Users can only register using a valid invitation token
-- **Family Tree Dashboard**: Visual and tabular views of family relationships
-- **Hierarchical Tree Visualization**: Interactive vis-network powered tree visualization
-- **GEDCOM Export**: Export family tree data in standard GEDCOM format for genealogy software
-- **Complete CRUD Operations**: Add, edit, and delete family members with parent-child relationships
-- **JWT Authentication**: Secure session management
-- **Responsive Design**: Tailwind CSS for modern, responsive UI
+- **Add Family Members**: Add members with name, birth year, gender, notes, and photo
+- **Define Relationships**: Link members as parent/spouse/children
+- **Visual Family Tree**: Interactive tree visualization with ancestor and descendant layout
+- **Edit Members**: Update existing family member information
+- **Persistent Storage**: Data saved to localStorage (persists across refreshes)
+- **Search & Filter**: Search by name and filter by gender
+- **Export Options**: Export as PDF or image
+- **Photo Support**: Upload and display family photos
+- **Responsive Design**: Works on mobile, tablet, and desktop
+- **Type-safe**: Full TypeScript support
 
 ## Tech Stack
 
-### Backend
-- **Runtime**: Node.js with Express
-- **Database**: SQLite with Prisma ORM
-- **Authentication**: JWT with bcrypt password hashing
-- **Validation**: Zod for input validation
-- **Security**: Helmet, CORS, Rate Limiting
+- **Framework**: Next.js 16 with App Router (TypeScript)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **State Management**: React hooks with localStorage persistence
+- **Export**: html2canvas + jsPDF for PDF/image export
 
-### Frontend
-- **Framework**: React 18 with Vite
-- **Routing**: React Router DOM 6
-- **UI Library**: Tailwind CSS + HeadlessUI
-- **Tree Visualization**: vis-network
-- **HTTP Client**: Axios
+## Getting Started
 
-## Requirements
+### Prerequisites
+- Node.js 18+
+- npm or yarn
 
-- Node.js 18+ 
-- npm 9+
-- Claude Code (for development)
-
-## Setup
-
-### 1. Install Dependencies
+### Installation
 
 ```bash
-# Install root dependencies
-npm install
-
-# Install backend dependencies
-cd backend
-npm install
-
-# Install frontend dependencies
-cd ../frontend
 npm install
 ```
 
-### 2. Set Up Environment Variables
+### Development
 
 ```bash
-# Copy environment template
-cp .env.example .env
-
-# Edit the values as needed
-# For production, use strong JWT_SECRET
-```
-
-### 3. Initialize Database
-
-```bash
-# Navigate to backend
-cd backend
-
-# Run Prisma migration
-npx prisma migrate dev --name init
-
-# Generate Prisma client
-npx prisma generate
-```
-
-### 4. Start Development Servers
-
-```bash
-# From the root directory
 npm run dev
+```
 
-# Backend will run on http://localhost:3000
-# Frontend will run on http://localhost:5173
+Open [http://localhost:3000](http://localhost:3000) to view the app in your browser.
+
+### Build
+
+```bash
+npm run build
+npm start
 ```
 
 ## Project Structure
 
 ```
-family-tree-app/
-├── backend/
-│   ├── prisma/           # Database schema
-│   └── src/
-│       ├── middleware/    # Auth middleware
-│       ├── routes/        # API routes (auth, family)
-│       └── index.ts       # Server entry point
-├── frontend/
-│   ├── src/
-│   │   ├── components/    # React components
-│   │   ├── contexts/      # Auth context
-│   │   ├── pages/         # Page components
-│   │   ├── styles/        # CSS styles
-│   │   └── types/         # TypeScript types
-│   └── vite.config.ts     # Vite config
-├── .env.example           # Environment template
-└── README.md
+family-tree/
+├── app/                            # Next.js app directory
+│   ├── layout.tsx                  # Root layout
+│   ├── page.tsx                    # Home page
+│   └── globals.css                 # Global styles
+├── components/                     # React components
+│   ├── AddPersonForm.tsx          # Form to add family members
+│   ├── EditPersonForm.tsx         # Form to edit family members
+│   ├── FamilyTree.tsx             # Card-based family tree display
+│   ├── VisualFamilyTree.tsx       # Visual tree diagram component
+│   ├── SearchFilter.tsx           # Search and filter component
+│   └── ExportButton.tsx           # PDF/Image export component
+├── services/                       # Application services
+│   └── familyTreeStorage.ts       # LocalStorage persistence
+├── types/                          # TypeScript type definitions
+│   └── family.ts                  # Family member and tree types
+└── public/                       # Static assets
 ```
 
-## API Endpoints
+## How to Use
 
-### Authentication
-- `POST /api/auth/invite` - Generate invitation token (Admin only)
-- `POST /api/auth/register` - Register with invitation token
-- `POST /api/auth/login` - User login
-- `GET /api/auth/me` - Get current user
+1. **Add a Family Member**: Click "+ Add Person" button to open the form
+2. **Fill in Details**: Enter name (required), birth year, gender, and optional notes
+3. **Add Photo**: Click the photo upload button to add a family photo
+4. **Define Relationships**: Select parent and/or spouse from existing members
+5. **Submit**: Click "Add Person" to save to the tree
+6. **View**: See members in either List View or Visual Tree view
+7. **Edit**: Click "Edit" on any member to update their information
+8. **Delete**: Click "Delete" to remove a member and their relationships
+9. **Search/Filter**: Use the search bar and gender filter to narrow down results
+10. **Export**: Click "Export PDF" or "Export Image" to download your family tree
 
-### Family
-- `GET /api/family` - Get all family members
-- `POST /api/family/person` - Create new family member
-- `PUT /api/family/person/:id` - Update family member
-- `DELETE /api/family/person/:id` - Delete family member
-- `GET /api/family/tree` - Get hierarchical tree data
-- `GET /api/family/export/gedcom` - Export as GEDCOM format
+## Data Persistence
 
-## Invitation System
+All family members and relationships are automatically saved to localStorage. Your data persists across:
+- Page refreshes
+- Browser restarts
+- Closing and reopening the tab
 
-### Generate Invitation
-
-```bash
-curl -X POST http://localhost:3000/api/auth/invite \
-  -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "name": "John Doe"}'
-```
-
-### Register with Invitation
-
-Users receive an invitation token in the response. They use it to register:
-
-```bash
-curl -X POST http://localhost:3000/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "securepassword123",
-    "invitationToken": "inv_1234567890_abc123",
-    "name": "John Doe"
-  }'
-```
-
-## Production Deployment
-
-### Build
-
-```bash
-# Build frontend
-cd frontend
-npm run build
-
-# Build backend
-cd ../backend
-npm run build
-```
-
-### Database Migration
-
-```bash
-cd backend
-npx prisma migrate deploy
-```
-
-## Security Considerations
-
-- All routes require valid JWT token
-- Invitation tokens expire after 7 days
-- Rate limiting enabled on auth endpoints
-- Passwords hashed with bcrypt
-- CORS configured for frontend origin
-- Helmet middleware for security headers
+To reset your data, clear browser localStorage for this site.
 
 ## License
 
-MIT License
+MIT
