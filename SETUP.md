@@ -4,7 +4,11 @@ The app runs in two modes:
 - **No Supabase keys** -> single-device version (data in the browser only).
 - **With Supabase keys** -> shared, invite-only family network (this guide).
 
-> Already ran an older schema.sql? Run `supabase/migration_002_delete_account.sql` plus the three new functions from `schema.sql` instead of re-running everything.
+> Already running an older `schema.sql`? Do **not** re-run the whole file. In the SQL Editor run, in order:
+> 1. `supabase/migration_002_delete_account.sql` (only if you have not run it yet)
+> 2. `supabase/migration_003_hardening.sql` (concurrent-edit protection, cascade rules, atomic writes)
+>
+> Both are written to be safe on a database that already holds real data. Fresh installs only need `schema.sql`, which already includes everything.
 
 ## 1. Create the database (free)
 1. Go to https://supabase.com -> New project (any name, pick a region close to your relatives, save the database password).
