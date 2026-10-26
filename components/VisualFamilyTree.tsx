@@ -88,7 +88,7 @@ export default function VisualFamilyTree({ members, onDeleteMember, onEditMember
                 onMouseEnter={() => setHovered(m.id)}
                 onMouseLeave={() => setHovered(null)}
                 onClick={() => onEditMember(m)}
-                className={`absolute flex cursor-pointer items-center gap-3 rounded-xl border bg-[#14110a] px-3 transition-colors ${hovered === m.id ? 'border-[#d4af37]' : 'border-[#2a2418]'}`}
+                className={`absolute flex cursor-pointer items-center gap-3 rounded-xl border bg-[#14110a] px-3 transition-colors ${m.deceased ? 'opacity-75' : ''} ${hovered === m.id ? 'border-[#d4af37]' : 'border-[#2a2418]'}`}
                 style={{ left: x, top: y, width: CARD_W, height: CARD_H, borderTop: `3px solid ${ACCENT[m.gender]}` }}
               >
                 {m.photoUrl ? (
@@ -98,8 +98,10 @@ export default function VisualFamilyTree({ members, onDeleteMember, onEditMember
                   <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#2a2310] text-lg font-bold text-[#d4af37]">{m.name.charAt(0).toUpperCase()}</span>
                 )}
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-[#f5f0e1]" title={m.name}>{m.name}</span>
-                  <span className="block text-xs text-[#9a917c]">{m.birthYear ? `b. ${m.birthYear}` : '\u00a0'}</span>
+                  <span className="block truncate text-sm font-semibold text-[#f5f0e1]" title={m.name}>{m.name}{m.deceased ? ' †' : ''}</span>
+                  <span className="block text-xs text-[#9a917c]">
+                    {m.birthYear ? `${m.birthYear}${m.deceased && m.deathDate ? `–${m.deathDate.slice(0, 4)}` : ''}` : (m.deceased ? '†' : '\u00a0')}
+                  </span>
                   {badge && <span className="mt-0.5 inline-block rounded-full bg-[#2a2310] px-2 text-[10px] font-semibold text-[#d4af37]">{badge}</span>}
                 </span>
                 {hovered === m.id && (

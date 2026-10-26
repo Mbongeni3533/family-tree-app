@@ -12,6 +12,7 @@ import SearchFilter from '@/components/SearchFilter'
 import DeleteAccount from '@/components/DeleteAccount'
 import { ExportButton } from '@/components/ExportButton'
 import { getClient } from '@/lib/supabase'
+import { formatDate } from '@/services/dates'
 import * as cloud from '@/services/cloud'
 import type { Flag } from '@/services/cloud'
 import type { FamilyMember } from '@/types/family'
@@ -46,6 +47,7 @@ function Network({ session }: { session: Session }) {
   const [q, setQ] = useState('')
   const [gender, setGender] = useState('all')
   const [link, setLink] = useState<string | null>(null)
+  const [prefill, setPrefill] = useState<{ asParentOf?: string; parentId?: string; spouseIds?: string[] } | null>(null)
 
   const run = async (fn: () => Promise<void>) => { try { setErr(null); await fn() } catch (e) { setErr(e instanceof Error ? e.message : 'Something went wrong') } }
   const reload = useCallback(async (id?: string) => {
@@ -82,10 +84,14 @@ function Network({ session }: { session: Session }) {
     </main>
   )
 
-  const add = (self: boolean) => async (m: Omit<FamilyMember, 'id'>) => {
+  const add = (self: boolean) => async (m: Omit<FamilyMember, 'id'>, asParentOf?: string) => {
     if (members.some(x => x.name.trim().toLowerCase() === m.name.trim().toLowerCase()) && !window.confirm(`Someone named “${m.name}” is already in this tree. Add another card anyway? (If it is the same person, cancel and link to the existing card.)`)) return
-    await run(async () => { await cloud.addPerson(net.id, m, self); setMode('view'); await reload() })
+    await run(async () => { await cloud.addPerson(net.id, m, self, asParentOf); setMode('view'); setPrefill(null); await reload() })
   }
+
+  // Opens the add form with the relationship already pointing the right way.
+  const startAdd = (p: { asParentOf?: string; parentId?: string; spouseIds?: string[] }) => { setPrefill(p); setMode('add') }
+  const prefillTitle = prefill?.asParentOf ? 'Add a parent' : prefill?.parentId ? 'Add a child' : prefill?.spouseIds ? 'Add a partner' : 'Add a person'
   const detail = selected
   const creatorLabel = detail ? (mine(detail) ? 'you' : 'another relative') : ''
 
@@ -126,8 +132,15 @@ function Network({ session }: { session: Session }) {
             <div className="sticky top-6 rounded-xl border border-[#2a2418] bg-[#14110a] p-5">
               {mode === 'add' || mode === 'addSelf' ? (
                 <>
-                  <h2 className="mb-4 text-xl font-bold">{mode === 'addSelf' ? 'Add yourself' : 'Add a person'}</h2>
-                  <AddPersonForm members={members.filter(m => !m.hidden)} onAdd={add(mode === 'addSelf')} onCancel={() => setMode('view')} />
+                  <h2 className="mb-4 text-xl font-bold">{mode === 'addSelf' ? 'Add yourself' : prefillTitle}</h2>
+                  <AddPersonForm
+                    members={members.filter(m => !m.hidden)}
+                    onAdd={add(mode === 'addSelf')}
+                    onCancel={() => { setMode('view'); setPrefill(null) }}
+                    initialParentId={prefill?.parentId}
+                    initialSpouseIds={prefill?.spouseIds}
+                    asParentOf={prefill?.asParentOf}
+                  />
                 </>
               ) : mode === 'edit' && detail ? (
                 <>
@@ -137,8 +150,13 @@ function Network({ session }: { session: Session }) {
                 </>
               ) : detail ? (
                 <div className="space-y-3">
-                  <h2 className="text-xl font-bold text-[#d4af37]">{detail.name}</h2>
-                  <p className="text-sm text-[#9a917c]">{detail.gender}{detail.birthYear ? ` · born ${detail.birthYear}` : ''}</p>
+                  <h2 className="text-xl font-bold text-[#d4af37]">{detail.name}{detail.deceased ? ' †' : ''}</h2>
+                  <p className="text-sm text-[#9a917c]">
+                    {detail.gender}
+                    {detail.birthDate || detail.birthYear ? ` · born ${detail.birthDate ? formatDate(detail.birthDate) : detail.birthYear}` : ''}
+                    {detail.deceased ? ` · died ${detail.deathDate ? formatDate(detail.deathDate) : '(date unknown)'}` : ' · living'}
+                  </p>
+                  {detail.residence && <p className="text-sm text-[#9a917c]">Residential area: {detail.residence}</p>}
                   {detail.notes && <p className="text-sm text-[#e6dfc8]">{detail.notes}</p>}
                   <p className="text-xs text-[#7a725f]">Entered by {creatorLabel} · {detail.claimedBy ? (detail.claimedBy === uid ? 'this is you' : 'claimed by the person themselves') : 'not yet claimed'}{detail.hidden ? ' · HIDDEN' : ''}</p>
                   <div className="flex flex-wrap gap-2 pt-2">
@@ -147,6 +165,16 @@ function Network({ session }: { session: Session }) {
                     {mine(detail) && !detail.claimedBy && <button className={btn} onClick={() => run(async () => { setLink(`${window.location.origin}/join?token=${await cloud.createInvite(detail.id)}`) })}>Invite link</button>}
                     {mine(detail) && !detail.claimedBy && !me && <button className={btn} onClick={() => run(async () => { await cloud.claimPerson(detail.id); await reload() })}>This is me</button>}
                     {!mine(detail) && <button className={btn} onClick={() => { const r = window.prompt('Why are you flagging this entry? (the founder will review it)'); if (r && r.trim().length >= 3) run(async () => { await cloud.flagPerson(net.id, detail.id, r.trim()); window.alert('Flag sent to the founder.') }) }}>Flag</button>}
+                  </div>
+
+                  <div className="space-y-2 border-t border-[#2a2418] pt-3">
+                    <p className="text-xs uppercase tracking-widest text-[#7a725f]">Grow this branch</p>
+                    <div className="flex flex-wrap gap-2">
+                      <button className={btn} onClick={() => startAdd({ asParentOf: detail.id })}>+ Parent</button>
+                      <button className={btn} onClick={() => startAdd({ spouseIds: [detail.id] })}>+ Partner</button>
+                      <button className={btn} onClick={() => startAdd({ parentId: detail.id })}>+ Child</button>
+                    </div>
+                    <p className="text-xs text-[#7a725f]">Creates a card for the relative and links it to {detail.name}. They do not need an account.</p>
                   </div>
                   {!canEdit(detail) && <p className="text-xs text-[#7a725f]">Only the person who entered this card can edit it.</p>}
                   {link && (

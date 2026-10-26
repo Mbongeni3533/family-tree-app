@@ -1,7 +1,10 @@
 import type { FamilyMember } from '@/types/family'
+import { yearOf } from '@/services/dates'
 
 const GENDERS = ['male', 'female', 'other']
 const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v : undefined)
+const DATE_RE = /^\d{4}(-\d{2}(-\d{2})?)?$/
+const dateStr = (v: unknown) => (typeof v === 'string' && DATE_RE.test(v) ? v : undefined)
 
 export function buildBackup(members: FamilyMember[]) {
   return { app: 'family-tree', version: 1, exportedAt: new Date().toISOString(), members }
@@ -32,11 +35,16 @@ export function parseBackup(text: string): FamilyMember[] {
     if (!id || !name || seen.has(id)) continue
     seen.add(id)
     const photo = str(m.photoUrl)
+    const birthDate = dateStr(m.birthDate)
     members.push({
       id,
       name,
       gender: GENDERS.includes(m.gender as string) ? (m.gender as FamilyMember['gender']) : 'other',
-      birthYear: typeof m.birthYear === 'number' && Number.isFinite(m.birthYear) ? m.birthYear : undefined,
+      birthDate,
+      birthYear: typeof m.birthYear === 'number' && Number.isFinite(m.birthYear) ? m.birthYear : yearOf(birthDate),
+      deceased: m.deceased === true,
+      deathDate: dateStr(m.deathDate),
+      residence: str(m.residence),
       parentId: str(m.parentId),
       parent2Id: str(m.parent2Id),
       spouseId: str(m.spouseId),

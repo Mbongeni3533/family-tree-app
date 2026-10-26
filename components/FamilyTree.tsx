@@ -1,6 +1,7 @@
 'use client'
 
 import { spouseMap } from '@/services/relations'
+import { formatDate } from '@/services/dates'
 import type { FamilyMember } from '@/types/family'
 
 interface FamilyTreeProps {
@@ -68,17 +69,25 @@ export default function FamilyTree({ members, onDeleteMember, onEditMember }: Fa
 
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-lg font-semibold text-[#f5f0e1]">{member.name}</h3>
+                    <h3 className="text-lg font-semibold text-[#f5f0e1]">{member.name}{member.deceased ? ' †' : ''}</h3>
                     <span className="text-sm text-[#7a725f]">
                       {member.gender === 'male' ? '♂' : member.gender === 'female' ? '♀' : '⚪'}
                     </span>
                   </div>
 
-                  {member.birthYear && (
-                    <p className="text-sm text-[#9a917c] mb-1">
-                      Born {member.birthYear} (Age: {new Date().getFullYear() - member.birthYear})
-                    </p>
-                  )}
+                  <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[#9a917c]">
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${member.deceased ? 'bg-[#2a2418] text-[#9a917c]' : 'bg-[#1c2b1c] text-[#8fd18f]'}`}>
+                      {member.deceased ? 'Deceased' : 'Living'}
+                    </span>
+                    {(member.birthDate || member.birthYear) && (
+                      <span>
+                        Born {member.birthDate ? formatDate(member.birthDate) : member.birthYear}
+                        {!member.deceased && member.birthYear ? ` (age ${new Date().getFullYear() - member.birthYear})` : ''}
+                      </span>
+                    )}
+                    {member.deceased && member.deathDate && <span>· Died {formatDate(member.deathDate)}</span>}
+                    {member.residence && <span>· {member.residence}</span>}
+                  </div>
 
                   <div className="text-sm text-[#9a917c] mb-2 space-y-1">
                     {(getParent(member.parentId) || getParent(member.parent2Id)) && (

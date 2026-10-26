@@ -40,13 +40,22 @@ export default function LocalApp() {
     familyTreeStorage.save({ ...data, members })
   }, [members, hydrated])
 
-  const addMember = (member: Omit<FamilyMember, 'id'>) => {
+  const addMember = (member: Omit<FamilyMember, 'id'>, asParentOf?: string) => {
     const newMember: FamilyMember = {
       ...member,
       id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
       addedAt: Date.now(),
     }
-    setMembers(setSpouses([...members, newMember], newMember.id, newMember.spouseIds ?? []))
+    let next = setSpouses([...members, newMember], newMember.id, newMember.spouseIds ?? [])
+    if (asParentOf) {
+      // The new card is the parent of the selected person.
+      next = next.map(m => m.id !== asParentOf ? m : {
+        ...m,
+        parentId: m.parentId ?? newMember.id,
+        parent2Id: m.parentId ? (m.parent2Id ?? newMember.id) : m.parent2Id,
+      })
+    }
+    setMembers(next)
     setShowForm(false)
   }
 

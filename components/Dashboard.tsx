@@ -1,5 +1,6 @@
 import type { FamilyMember } from '@/types/family'
 import { spouseMap } from '@/services/relations'
+import { formatDate } from '@/services/dates'
 
 const GOLD = '#d4af37'
 
@@ -34,28 +35,37 @@ export default function Dashboard({ members, onOpen }: { members: FamilyMember[]
   const total = members.length
   const count = (g: string) => members.filter(m => m.gender === g).length
   const split = [['Male', count('male')], ['Female', count('female')], ['Other', count('other')]] as const
+
+  const deceased = members.filter(m => m.deceased).length
+  const living = total - deceased
   const withYear = members.filter(m => m.birthYear)
   const oldest = withYear.length ? withYear.reduce((a, b) => (a.birthYear! <= b.birthYear! ? a : b)) : null
   const youngest = withYear.length ? withYear.reduce((a, b) => (a.birthYear! >= b.birthYear! ? a : b)) : null
   const photos = members.filter(m => m.photoUrl).length
+
+  // polygamy / marriage statistics (a household can have several spouses)
   const sp = spouseMap(members)
   const counts = [...sp.values()].map(v => v.length)
   const marriages = counts.reduce((a, b) => a + b, 0) / 2
   const married = counts.filter(c => c > 0).length
   const multi = counts.filter(c => c > 1).length
   const mostSpouses = Math.max(0, ...counts)
-  const mothers = new Set(members.flatMap(m => [m.parentId, m.parent2Id]).filter((p): p is string => !!p && members.find(x => x.id === p)?.gender === 'female'))
+  const mothers = new Set(
+    members.flatMap(m => [m.parentId, m.parent2Id]).filter((p): p is string => !!p && members.find(x => x.id === p)?.gender === 'female')
+  )
   const kidsOfMothers = members.filter(m => [m.parentId, m.parent2Id].some(p => p && mothers.has(p))).length
+
   const recent = [...members].sort((a, b) => (b.addedAt ?? 0) - (a.addedAt ?? 0) || members.indexOf(b) - members.indexOf(a)).slice(0, 5)
 
   return (
     <div id="family-tree-content" className="space-y-6">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-5">
-        <Stat label="Total members" value={total} />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+        <Stat label="Total members" value={total} sub={`${photos} with photos`} />
         <Stat label="Generations" value={generations(members)} />
+        <Stat label="Living" value={living} sub={total ? `${Math.round((living / total) * 100)}% of tree` : undefined} />
+        <Stat label="Deceased" value={deceased} sub={total ? `${Math.round((deceased / total) * 100)}% of tree` : undefined} />
         <Stat label="Oldest" value={oldest?.birthYear ?? '—'} sub={oldest?.name} />
         <Stat label="Youngest" value={youngest?.birthYear ?? '—'} sub={youngest?.name} />
-        <Stat label="With photos" value={photos} sub={total ? `${Math.round((photos / total) * 100)}% of tree` : undefined} />
       </div>
 
       {marriages > 0 && (
@@ -98,8 +108,17 @@ export default function Dashboard({ members, onOpen }: { members: FamilyMember[]
                     ) : (
                       <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#2a2310] font-bold text-[#d4af37]">{m.name.charAt(0).toUpperCase()}</span>
                     )}
-                    <span className="flex-1 text-[#f5f0e1]">{m.name}</span>
-                    <span className="text-sm text-[#9a917c]">{m.birthYear ?? ''}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[#f5f0e1]">{m.name}{m.deceased ? ' †' : ''}</span>
+                      <span className="block truncate text-xs text-[#9a917c]">
+                        {m.birthDate ? formatDate(m.birthDate) : (m.birthYear ?? '')}
+                        {m.deceased && m.deathDate ? ` – ${formatDate(m.deathDate)}` : ''}
+                        {m.residence ? ` · ${m.residence}` : ''}
+                      </span>
+                    </span>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${m.deceased ? 'bg-[#2a2418] text-[#9a917c]' : 'bg-[#1c2b1c] text-[#8fd18f]'}`}>
+                      {m.deceased ? 'Deceased' : 'Living'}
+                    </span>
                   </button>
                 </li>
               ))}

@@ -1,7 +1,11 @@
 export interface FamilyMember {
   id: string
   name: string
-  birthYear?: number
+  birthYear?: number // derived from birthDate; kept for old saved data and GEDCOM
+  birthDate?: string // "1954", "1954-06" or "1954-06-12"
+  deathDate?: string // same format; only meaningful when deceased is true
+  deceased?: boolean
+  residence?: string // residential area / village / town
   gender: 'male' | 'female' | 'other'
   parentId?: string
   parent2Id?: string
