@@ -212,6 +212,7 @@ function Network({ session }: { session: Session }) {
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-4">
           <aside className="lg:col-span-1">
             <div className="sticky top-6 rounded-xl border border-[#2a2418] bg-[#14110a] p-5">
+              {err && <p className="mb-3 rounded-lg border border-[#4d2424] bg-[#3a1c1c] px-3 py-2 text-xs text-[#ff8a8a]">{err}</p>}
               {mode === 'add' || mode === 'addSelf' ? (
                 <>
                   <h2 className="mb-4 text-xl font-bold">{mode === 'addSelf' ? 'Add yourself' : prefillTitle}</h2>

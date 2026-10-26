@@ -134,10 +134,14 @@ export default function AddPersonForm({ members, onAdd, onCancel, initialParentI
               onClick={() => pick && onLinkExisting(pick)}
               className="shrink-0 rounded-lg bg-[#d4af37] px-3 py-2 text-sm font-semibold text-[#0b0b0c] disabled:opacity-40"
             >
-              Link
+              {pick ? 'Link →' : 'Link'}
             </button>
           </div>
-          <p className="text-xs text-[#9a917c]">No new card is created — the existing one gets the relationship.</p>
+          <p className="text-xs text-[#9a917c]">
+            {pick
+              ? `Selected: ${linkCandidates.find(c => c.id === pick)?.name ?? ''} — now press “Link →” to apply it.`
+              : 'Pick a name, then press Link. No new card is created.'}
+          </p>
         </div>
       )}
 
