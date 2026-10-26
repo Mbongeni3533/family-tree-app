@@ -9,6 +9,32 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 
 export const DATE_HINT = 'YYYY, YYYY-MM or YYYY-MM-DD'
 
+export interface DateParts {
+  year: string // '' or four digits
+  month: string // '' or 01–12
+  day: string // '' or 01–31
+}
+
+export const EMPTY_PARTS: DateParts = { year: '', month: '', day: '' }
+
+/** Splits "1954-06-12" into the three fields the inputs use. */
+export function splitDate(value?: string): DateParts {
+  if (!value) return { ...EMPTY_PARTS }
+  return {
+    year: value.slice(0, 4),
+    month: value.length >= 7 ? value.slice(5, 7) : '',
+    day: value.length >= 10 ? value.slice(8, 10) : '',
+  }
+}
+
+/** Takes whatever the three fields hold and builds the stored form. */
+export function composeDate({ year, month, day }: DateParts): string | undefined {
+  if (!year || year.length !== 4) return undefined
+  if (!month) return year
+  if (!day) return `${year}-${month}`
+  return `${year}-${month}-${day}`
+}
+
 export function parseDate(input: string): { value?: string; error?: string } {
   const raw = input.trim()
   if (!raw) return {}

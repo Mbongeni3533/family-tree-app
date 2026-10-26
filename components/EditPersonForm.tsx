@@ -1,9 +1,11 @@
 'use client'
 
 import SpousePicker from '@/components/SpousePicker'
+import DatePartsInput from '@/components/DatePartsInput'
 import { spouseMap, ownSpouses } from '@/services/relations'
 import { fileToPhoto } from '@/services/photos'
-import { DATE_HINT, parseDate, yearOf } from '@/services/dates'
+import { composeDate, EMPTY_PARTS, parseDate, splitDate, yearOf } from '@/services/dates'
+import type { DateParts } from '@/services/dates'
 import { useState } from 'react'
 import type { FamilyMember } from '@/types/family'
 
@@ -20,16 +22,16 @@ const label = 'block text-sm font-medium text-[#e6dfc8] mb-1'
 export default function EditPersonForm({ member, members, onUpdate, onCancel }: EditPersonFormProps) {
   const [formData, setFormData] = useState({
     name: member.name,
-    birthDate: member.birthDate ?? (member.birthYear ? String(member.birthYear) : ''),
-    deceased: member.deceased ?? false,
-    deathDate: member.deathDate ?? '',
-    residence: member.residence ?? '',
     gender: member.gender,
     notes: member.notes || '',
     parentId: member.parentId || '',
     parent2Id: member.parent2Id || '',
     spouseIds: (() => { const all = spouseMap(members).get(member.id) ?? []; return [...ownSpouses(member).filter(x => all.includes(x)), ...all.filter(x => !ownSpouses(member).includes(x))] })(),
   })
+  const [birth, setBirth] = useState<DateParts>(() => splitDate(member.birthDate ?? (member.birthYear ? String(member.birthYear) : '')))
+  const [death, setDeath] = useState<DateParts>(() => splitDate(member.deathDate))
+  const [deceased, setDeceased] = useState(member.deceased ?? false)
+  const [residence, setResidence] = useState(member.residence ?? '')
 
   const [photo, setPhoto] = useState<string | null>(member.photoUrl ?? null)
   const [photoBusy, setPhotoBusy] = useState(false)
@@ -56,11 +58,14 @@ export default function EditPersonForm({ member, members, onUpdate, onCancel }: 
     e.preventDefault()
     if (!formData.name.trim()) return
 
-    const birth = parseDate(formData.birthDate)
-    if (birth.error) { setError(`Birth date: ${birth.error}`); return }
-    const death = parseDate(formData.deathDate)
-    if (death.error) { setError(`Death date: ${death.error}`); return }
-    if (formData.deceased && birth.value && death.value && death.value < birth.value) {
+    const birthDate = composeDate(birth)
+    const deathDate = deceased ? composeDate(death) : undefined
+
+    const birthCheck = parseDate(birthDate ?? '')
+    if (birthCheck.error) { setError(`Birth date: ${birthCheck.error}`); return }
+    const deathCheck = parseDate(deathDate ?? '')
+    if (deathCheck.error) { setError(`Death date: ${deathCheck.error}`); return }
+    if (birthDate && deathDate && deathDate < birthDate) {
       setError('The death date is before the birth date.')
       return
     }
@@ -69,11 +74,11 @@ export default function EditPersonForm({ member, members, onUpdate, onCancel }: 
     onUpdate({
       ...member,
       name: formData.name.trim(),
-      birthDate: birth.value,
-      birthYear: yearOf(birth.value),
-      deceased: formData.deceased,
-      deathDate: formData.deceased ? death.value : undefined,
-      residence: formData.residence.trim() || undefined,
+      birthDate,
+      birthYear: yearOf(birthDate),
+      deceased,
+      deathDate,
+      residence: residence.trim() || undefined,
       gender: formData.gender,
       notes: formData.notes.trim() || undefined,
       parentId: formData.parentId || undefined,
@@ -100,15 +105,7 @@ export default function EditPersonForm({ member, members, onUpdate, onCancel }: 
 
       <div>
         <label className={label}>Birth date</label>
-        <input
-          type="text"
-          inputMode="numeric"
-          value={formData.birthDate}
-          onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
-          className={field}
-          placeholder="1954 or 1954-06 or 1954-06-12"
-        />
-        <p className="mt-1 text-xs text-[#7a725f]">{DATE_HINT} — leave blank if unknown.</p>
+        <DatePartsInput value={birth} onChange={setBirth} />
       </div>
 
       <div className="rounded-lg border border-[#2a2418] p-3 space-y-3">
@@ -116,22 +113,15 @@ export default function EditPersonForm({ member, members, onUpdate, onCancel }: 
           <input
             type="checkbox"
             className="accent-[#d4af37]"
-            checked={formData.deceased}
-            onChange={(e) => setFormData({ ...formData, deceased: e.target.checked, deathDate: e.target.checked ? formData.deathDate : '' })}
+            checked={deceased}
+            onChange={(e) => { setDeceased(e.target.checked); if (!e.target.checked) setDeath({ ...EMPTY_PARTS }) }}
           />
           Deceased
         </label>
-        {formData.deceased && (
+        {deceased && (
           <div>
             <label className={label}>Date of death</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={formData.deathDate}
-              onChange={(e) => setFormData({ ...formData, deathDate: e.target.value })}
-              className={field}
-              placeholder="2019 or 2019-03 or 2019-03-04"
-            />
+            <DatePartsInput value={death} onChange={setDeath} />
           </div>
         )}
       </div>
@@ -140,8 +130,8 @@ export default function EditPersonForm({ member, members, onUpdate, onCancel }: 
         <label className={label}>Residential area</label>
         <input
           type="text"
-          value={formData.residence}
-          onChange={(e) => setFormData({ ...formData, residence: e.target.value })}
+          value={residence}
+          onChange={(e) => setResidence(e.target.value)}
           className={field}
           placeholder="e.g. Mbabane, Eswatini"
         />
