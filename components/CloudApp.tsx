@@ -206,6 +206,7 @@ function Network({ session }: { session: Session }) {
                     {detail.birthDate || detail.birthYear ? ` · born ${detail.birthDate ? formatDate(detail.birthDate) : detail.birthYear}` : ''}
                     {detail.deceased ? ` · died ${detail.deathDate ? formatDate(detail.deathDate) : '(date unknown)'}` : ' · living'}
                   </p>
+                  {detail.birthPlace && <p className="text-sm text-[#9a917c]">Born in {detail.birthPlace}</p>}
                   {detail.residence && <p className="text-sm text-[#9a917c]">Residential area: {detail.residence}</p>}
                   {detail.notes && <p className="text-sm text-[#e6dfc8]">{detail.notes}</p>}
                   <p className="text-xs text-[#7a725f]">

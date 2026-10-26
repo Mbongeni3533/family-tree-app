@@ -4,7 +4,7 @@ import { yearOf } from '@/services/dates'
 import type { FamilyMember } from '@/types/family'
 
 export interface Flag { id: string; person_id: string; reason: string; status: string; flagged_by: string; created_at: string }
-interface PersonRow { id: string; created_by: string; claimed_by: string | null; name: string; gender: FamilyMember['gender']; birth_year: number | null; birth_date: string | null; death_date: string | null; deceased: boolean; residence: string | null; notes: string | null; photo_url: string | null; parent_id: string | null; parent2_id: string | null; hidden: boolean; created_at: string; updated_at: string }
+interface PersonRow { id: string; created_by: string; claimed_by: string | null; name: string; gender: FamilyMember['gender']; birth_year: number | null; birth_date: string | null; death_date: string | null; deceased: boolean; residence: string | null; birth_place: string | null; notes: string | null; photo_url: string | null; parent_id: string | null; parent2_id: string | null; hidden: boolean; created_at: string; updated_at: string }
 interface MarriageRow { person_a: string; person_b: string; created_at: string }
 
 export function rowsToMembers(people: PersonRow[], marriages: MarriageRow[]): FamilyMember[] {
@@ -22,6 +22,7 @@ export function rowsToMembers(people: PersonRow[], marriages: MarriageRow[]): Fa
     deathDate: p.death_date ?? undefined,
     deceased: p.deceased,
     residence: p.residence ?? undefined,
+    birthPlace: p.birth_place ?? undefined,
     notes: p.notes ?? undefined, photoUrl: p.photo_url ?? undefined,
     parentId: p.parent_id && ids.has(p.parent_id) ? p.parent_id : undefined,
     parent2Id: p.parent2_id && ids.has(p.parent2_id) ? p.parent2_id : undefined,
@@ -77,6 +78,7 @@ export async function addPerson(networkId: string, m: Omit<FamilyMember, 'id'>, 
     p_spouses: m.spouseIds ?? [],
     p_claim: claim,
     p_as_parent_of: asParentOf ?? null,
+    p_birth_place: m.birthPlace ?? null,
   }))
   return id
 }
@@ -94,6 +96,7 @@ export async function updatePerson(prev: FamilyMember, m: FamilyMember) {
     p_death_date: m.deathDate ?? null,
     p_deceased: m.deceased ?? false,
     p_residence: m.residence ?? null,
+    p_birth_place: m.birthPlace ?? null,
     p_notes: m.notes ?? null,
     p_photo: await photoValue(m.photoUrl),
     p_parent: m.parentId ?? null,

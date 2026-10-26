@@ -82,6 +82,7 @@ export default function FamilyTree({ members, onDeleteMember, onEditMember }: Fa
                     {(member.birthDate || member.birthYear) && (
                       <span>
                         Born {member.birthDate ? formatDate(member.birthDate) : member.birthYear}
+                        {member.birthPlace ? ` in ${member.birthPlace}` : ''}
                         {!member.deceased && member.birthYear ? ` (age ${new Date().getFullYear() - member.birthYear})` : ''}
                       </span>
                     )}

@@ -52,9 +52,11 @@ export function exportGedcom(members: FamilyMember[]): string {
   for (const m of members) {
     L.push(`0 ${ix.get(m.id)} INDI`, `1 NAME ${m.name.replace(/\//g, '')}`)
     L.push(`1 SEX ${m.gender === 'male' ? 'M' : m.gender === 'female' ? 'F' : 'U'}`)
-    if (m.birthYear || m.birthDate) {
-      const birth = toGedcomDate(m.birthDate) ?? String(m.birthYear)
-      L.push('1 BIRT', `2 DATE ${birth}`)
+    const birth = toGedcomDate(m.birthDate) ?? (m.birthYear ? String(m.birthYear) : undefined)
+    if (birth || m.birthPlace) {
+      L.push('1 BIRT')
+      if (birth) L.push(`2 DATE ${birth}`)
+      if (m.birthPlace) L.push(`2 PLAC ${m.birthPlace}`)
     }
     if (m.deceased) {
       const death = toGedcomDate(m.deathDate)
@@ -134,6 +136,7 @@ export function parseGedcom(text: string): { members: FamilyMember[]; warnings: 
     const birthDate = birthText ? fromGedcomDate(birthText) : undefined
     const deathDate = deathText ? fromGedcomDate(deathText) : undefined
     const residence = (child(n, 'RESI')?.kids.find(k => k.tag === 'ADDR')?.value ?? child(n, 'RESI')?.value ?? '').trim()
+    const birthPlace = (child(n, 'BIRT')?.kids.find(k => k.tag === 'PLAC')?.value ?? '').trim()
     const notes = n.kids.filter(k => k.tag === 'NOTE' && !k.value.startsWith('@')).map(k => k.value).join('\n\n')
     members.set(id, {
       id, name,
@@ -143,6 +146,7 @@ export function parseGedcom(text: string): { members: FamilyMember[]; warnings: 
       deceased: Boolean(child(n, 'DEAT')),
       deathDate,
       residence: residence || undefined,
+      birthPlace: birthPlace || undefined,
       notes: notes || undefined,
       addedAt: now + i,
     })

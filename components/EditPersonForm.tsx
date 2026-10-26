@@ -31,6 +31,7 @@ export default function EditPersonForm({ member, members, onUpdate, onCancel }: 
   const [birth, setBirth] = useState<DateParts>(() => splitDate(member.birthDate ?? (member.birthYear ? String(member.birthYear) : '')))
   const [death, setDeath] = useState<DateParts>(() => splitDate(member.deathDate))
   const [deceased, setDeceased] = useState(member.deceased ?? false)
+  const [birthPlace, setBirthPlace] = useState(member.birthPlace ?? '')
   const [residence, setResidence] = useState(member.residence ?? '')
 
   const [photo, setPhoto] = useState<string | null>(member.photoUrl ?? null)
@@ -79,6 +80,7 @@ export default function EditPersonForm({ member, members, onUpdate, onCancel }: 
       deceased,
       deathDate,
       residence: residence.trim() || undefined,
+      birthPlace: birthPlace.trim() || undefined,
       gender: formData.gender,
       notes: formData.notes.trim() || undefined,
       parentId: formData.parentId || undefined,
@@ -106,6 +108,17 @@ export default function EditPersonForm({ member, members, onUpdate, onCancel }: 
       <div>
         <label className={label}>Birth date</label>
         <DatePartsInput value={birth} onChange={setBirth} />
+      </div>
+
+      <div>
+        <label className={label}>Birth area</label>
+        <input
+          type="text"
+          value={birthPlace}
+          onChange={(e) => setBirthPlace(e.target.value)}
+          className={field}
+          placeholder="e.g. Manzini, Eswatini"
+        />
       </div>
 
       <div className="rounded-lg border border-[#2a2418] p-3 space-y-3">

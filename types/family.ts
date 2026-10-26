@@ -6,6 +6,7 @@ export interface FamilyMember {
   deathDate?: string // same format; only meaningful when deceased is true
   deceased?: boolean
   residence?: string // residential area / village / town
+  birthPlace?: string // where the person was born
   gender: 'male' | 'female' | 'other'
   parentId?: string
   parent2Id?: string

@@ -45,6 +45,7 @@ export function parseBackup(text: string): FamilyMember[] {
       deceased: m.deceased === true,
       deathDate: dateStr(m.deathDate),
       residence: str(m.residence),
+      birthPlace: str(m.birthPlace),
       parentId: str(m.parentId),
       parent2Id: str(m.parent2Id),
       spouseId: str(m.spouseId),

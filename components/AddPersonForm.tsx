@@ -38,6 +38,7 @@ export default function AddPersonForm({ members, onAdd, onCancel, initialParentI
   const [birth, setBirth] = useState<DateParts>({ ...EMPTY_PARTS })
   const [death, setDeath] = useState<DateParts>({ ...EMPTY_PARTS })
   const [deceased, setDeceased] = useState(false)
+  const [birthPlace, setBirthPlace] = useState('')
   const [residence, setResidence] = useState('')
 
   const [photo, setPhoto] = useState<string | null>(null)
@@ -87,6 +88,7 @@ export default function AddPersonForm({ members, onAdd, onCancel, initialParentI
       deceased,
       deathDate,
       residence: residence.trim() || undefined,
+      birthPlace: birthPlace.trim() || undefined,
       gender: formData.gender,
       notes: formData.notes.trim() || undefined,
       parentId: formData.parentId || undefined,
@@ -103,6 +105,7 @@ export default function AddPersonForm({ members, onAdd, onCancel, initialParentI
     setBirth({ ...EMPTY_PARTS })
     setDeath({ ...EMPTY_PARTS })
     setDeceased(false)
+    setBirthPlace('')
     setResidence('')
     setPhoto(null)
   }
@@ -167,6 +170,17 @@ export default function AddPersonForm({ members, onAdd, onCancel, initialParentI
       <div>
         <label className={label}>Birth date</label>
         <DatePartsInput value={birth} onChange={setBirth} />
+      </div>
+
+      <div>
+        <label className={label}>Birth area</label>
+        <input
+          type="text"
+          value={birthPlace}
+          onChange={(e) => setBirthPlace(e.target.value)}
+          className={field}
+          placeholder="e.g. Manzini, Eswatini"
+        />
       </div>
 
       <div className="rounded-lg border border-[#2a2418] p-3 space-y-3">
