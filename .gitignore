@@ -1,6 +1,9 @@
 .eslintrc.json
 node_modules
 .next
+*.tsbuildinfo
+.npm-cache
+.vercel
 out
 dist
 build
