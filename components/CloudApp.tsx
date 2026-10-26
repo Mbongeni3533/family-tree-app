@@ -47,6 +47,7 @@ function Network({ session }: { session: Session }) {
   const [q, setQ] = useState('')
   const [gender, setGender] = useState('all')
   const [link, setLink] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [prefill, setPrefill] = useState<{ asParentOf?: string; parentId?: string; spouseIds?: string[] } | null>(null)
 
   const run = async (fn: () => Promise<void>) => { try { setErr(null); await fn() } catch (e) { setErr(e instanceof Error ? e.message : 'Something went wrong') } }
@@ -95,17 +96,19 @@ function Network({ session }: { session: Session }) {
   const startAdd = (p: { asParentOf?: string; parentId?: string; spouseIds?: string[] }) => { setPrefill(p); setMode('add') }
   const prefillTitle = prefill?.asParentOf ? 'Add a parent' : prefill?.parentId ? 'Add a child' : prefill?.spouseIds ? 'Add a partner' : 'Add a person'
 
-  // Cards that could be linked instead of creating a duplicate.
+  // Candidates for the "link instead" picker and for duplicate warnings. The
+  // picker itself only appears when the form was opened from a relationship
+  // button, because only then is there a relation to apply.
   const visibleMembers = members.filter(m => !m.hidden)
   const linkCandidates = !prefill
-    ? []
+    ? visibleMembers
     : prefill.asParentOf
       ? visibleMembers.filter(m => m.id !== prefill.asParentOf)
       : prefill.parentId
         ? visibleMembers.filter(m => m.id !== prefill.parentId)
         : prefill.spouseIds?.length
           ? visibleMembers.filter(m => !prefill.spouseIds!.includes(m.id))
-          : []
+          : visibleMembers
 
   const linkExisting = (existingId: string) => run(async () => {
     const existing = members.find(m => m.id === existingId)
@@ -120,6 +123,7 @@ function Network({ session }: { session: Session }) {
         parentId: child.parentId ?? existingId,
         parent2Id: child.parentId ? (child.parent2Id ?? existingId) : child.parent2Id,
       })
+      setNotice(`Linked ${existing.name} as a parent of ${child.name}.`)
     } else if (prefill?.parentId) {
       if (existing.parentId && existing.parent2Id) throw new Error(`${existing.name} already has two parents`)
       await cloud.updatePerson(existing, {
@@ -127,11 +131,14 @@ function Network({ session }: { session: Session }) {
         parentId: existing.parentId ?? prefill.parentId,
         parent2Id: existing.parentId ? (existing.parent2Id ?? prefill.parentId) : existing.parent2Id,
       })
+      const anchorName = members.find(m => m.id === prefill.parentId)?.name ?? 'the selected person'
+      setNotice(`Linked ${existing.name} as a child of ${anchorName}.`)
     } else if (prefill?.spouseIds?.length) {
       const anchor = members.find(m => m.id === prefill.spouseIds![0])
       if (!anchor) throw new Error('That card no longer exists')
       if ((anchor.spouseIds ?? []).includes(existingId)) throw new Error('Those two are already partners')
       await cloud.updatePerson(anchor, { ...anchor, spouseIds: [...(anchor.spouseIds ?? []), existingId] })
+      setNotice(`Linked ${existing.name} and ${anchor.name} as partners.`)
     } else {
       throw new Error('Open a card and use + Parent, + Partner or + Child to link a relative')
     }
@@ -140,8 +147,13 @@ function Network({ session }: { session: Session }) {
     setPrefill(null)
     await reload()
   })
+
+  const openCard = (m: FamilyMember) => { setLink(null); setNotice(null); setSelected(m); setMode('view') }
   const detail = selected
   const creatorLabel = detail ? (mine(detail) ? 'you' : 'another relative') : ''
+  const detailParents = detail ? [detail.parentId, detail.parent2Id].map(id => members.find(m => m.id === id)?.name).filter((n): n is string => !!n) : []
+  const detailPartners = detail ? (detail.spouseIds ?? []).map(id => members.find(m => m.id === id)?.name).filter((n): n is string => !!n) : []
+  const detailChildren = detail ? members.filter(m => m.parentId === detail.id || m.parent2Id === detail.id).map(m => m.name) : []
 
   return (
     <main className="min-h-screen bg-[#0b0b0c] p-6 text-[#f5f0e1] sm:p-8">
@@ -189,7 +201,7 @@ function Network({ session }: { session: Session }) {
                     initialSpouseIds={prefill?.spouseIds}
                     asParentOf={prefill?.asParentOf}
                     linkCandidates={linkCandidates}
-                    onLinkExisting={linkExisting}
+                    onLinkExisting={prefill ? linkExisting : undefined}
                   />
                 </>
               ) : mode === 'edit' && detail ? (
@@ -201,6 +213,7 @@ function Network({ session }: { session: Session }) {
               ) : detail ? (
                 <div className="space-y-3">
                   <h2 className="text-xl font-bold text-[#d4af37]">{detail.name}{detail.deceased ? ' †' : ''}</h2>
+                  {notice && <p className="rounded-lg border border-[#d4af37] bg-[#2a2310] px-2 py-1 text-xs text-[#f5f0e1]">{notice}</p>}
                   <p className="text-sm text-[#9a917c]">
                     {detail.gender}
                     {detail.birthDate || detail.birthYear ? ` · born ${detail.birthDate ? formatDate(detail.birthDate) : detail.birthYear}` : ''}
@@ -226,6 +239,12 @@ function Network({ session }: { session: Session }) {
                     {!mine(detail) && <button className={btn} onClick={() => { const r = window.prompt('Why are you flagging this entry? (the founder will review it)'); if (r && r.trim().length >= 3) run(async () => { await cloud.flagPerson(net.id, detail.id, r.trim()); window.alert('Flag sent to the founder.') }) }}>Flag</button>}
                   </div>
 
+                  <div className="space-y-1 border-t border-[#2a2418] pt-3 text-sm text-[#9a917c]">
+                    <p><span className="text-[#7a725f]">Parents:</span> {detailParents.length ? detailParents.join(' & ') : '—'}</p>
+                    <p><span className="text-[#7a725f]">Partners:</span> {detailPartners.length ? detailPartners.join(', ') : '—'}</p>
+                    <p><span className="text-[#7a725f]">Children:</span> {detailChildren.length ? detailChildren.join(', ') : '—'}</p>
+                  </div>
+
                   <div className="space-y-2 border-t border-[#2a2418] pt-3">
                     <p className="text-xs uppercase tracking-widest text-[#7a725f]">Grow this branch</p>
                     <div className="flex flex-wrap gap-2">
@@ -249,9 +268,9 @@ function Network({ session }: { session: Session }) {
           </aside>
 
           <section className="lg:col-span-3">
-            {view === 'dashboard' && <Dashboard members={filtered} onOpen={m => { setLink(null); setSelected(m); setMode('view') }} />}
-            {view === 'list' && <FamilyTree members={filtered} onEditMember={m => { setLink(null); setSelected(m); setMode('view') }} onDeleteMember={id => { const m = members.find(x => x.id === id); if (m && mine(m)) { setSelected(m); setMode('view') } else window.alert('Only the person who entered this card can delete it.') }} />}
-            {view === 'tree' && <VisualFamilyTree members={filtered} onEditMember={m => { setLink(null); setSelected(m); setMode('view') }} onDeleteMember={id => { const m = members.find(x => x.id === id); if (m && mine(m)) { setSelected(m); setMode('view') } else window.alert('Only the person who entered this card can delete it.') }} />}
+            {view === 'dashboard' && <Dashboard members={filtered} onOpen={openCard} />}
+            {view === 'list' && <FamilyTree members={filtered} onEditMember={openCard} onDeleteMember={id => { const m = members.find(x => x.id === id); if (m && mine(m)) { setSelected(m); setMode('view') } else window.alert('Only the person who entered this card can delete it.') }} />}
+            {view === 'tree' && <VisualFamilyTree members={filtered} onEditMember={openCard} onDeleteMember={id => { const m = members.find(x => x.id === id); if (m && mine(m)) { setSelected(m); setMode('view') } else window.alert('Only the person who entered this card can delete it.') }} />}
             {view === 'network' && (
               <div className="space-y-6 rounded-xl border border-[#2a2418] bg-[#14110a] p-6">
                 <div>

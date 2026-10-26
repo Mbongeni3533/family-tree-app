@@ -153,11 +153,11 @@ export default function AddPersonForm({ members, onAdd, onCancel, initialParentI
           className={field}
           placeholder="Enter name"
         />
-        {suggestions.length > 0 && onLinkExisting && (
+        {suggestions.length > 0 && (
           <div className="mt-2 rounded-lg border border-[#2a2418] bg-[#14110a] p-2">
             <p className="text-xs text-[#9a917c]">Similar name{suggestions.length > 1 ? 's' : ''} already in the tree:</p>
             <div className="mt-1 flex flex-wrap gap-2">
-              {suggestions.map(s => (
+              {suggestions.map(s => onLinkExisting ? (
                 <button
                   key={s.id}
                   type="button"
@@ -166,9 +166,17 @@ export default function AddPersonForm({ members, onAdd, onCancel, initialParentI
                 >
                   {s.name}{s.deceased ? ' †' : ''}
                 </button>
+              ) : (
+                <span key={s.id} className="rounded-full border border-[#2a2418] px-2 py-0.5 text-xs text-[#9a917c]">
+                  {s.name}{s.deceased ? ' †' : ''}
+                </span>
               ))}
             </div>
-            <p className="mt-1 text-xs text-[#7a725f]">Click one to link it rather than creating a duplicate.</p>
+            <p className="mt-1 text-xs text-[#7a725f]">
+              {onLinkExisting
+                ? 'Click one to link it rather than creating a duplicate.'
+                : 'To link an existing card, open it and use + Parent, + Partner or + Child.'}
+            </p>
           </div>
         )}
       </div>
