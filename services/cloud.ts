@@ -3,7 +3,7 @@ import { shrinkPhoto } from '@/services/photos'
 import type { FamilyMember } from '@/types/family'
 
 export interface Flag { id: string; person_id: string; reason: string; status: string; flagged_by: string; created_at: string }
-interface PersonRow { id: string; created_by: string; claimed_by: string | null; name: string; gender: FamilyMember['gender']; birth_year: number | null; notes: string | null; photo_url: string | null; parent_id: string | null; parent2_id: string | null; hidden: boolean; created_at: string }
+interface PersonRow { id: string; created_by: string; claimed_by: string | null; name: string; gender: FamilyMember['gender']; birth_year: number | null; notes: string | null; photo_url: string | null; parent_id: string | null; parent2_id: string | null; hidden: boolean; created_at: string; updated_at: string }
 interface MarriageRow { person_a: string; person_b: string; created_at: string }
 
 export function rowsToMembers(people: PersonRow[], marriages: MarriageRow[]): FamilyMember[] {
@@ -21,6 +21,7 @@ export function rowsToMembers(people: PersonRow[], marriages: MarriageRow[]): Fa
     parent2Id: p.parent2_id && ids.has(p.parent2_id) ? p.parent2_id : undefined,
     spouseIds: sp.get(p.id), spouseId: sp.get(p.id)?.[0],
     addedAt: Date.parse(p.created_at), createdBy: p.created_by, claimedBy: p.claimed_by ?? undefined, hidden: p.hidden,
+    updatedAt: p.updated_at,
   }))
 }
 
@@ -42,28 +43,48 @@ export async function fetchTree(networkId: string): Promise<{ members: FamilyMem
   return { members: rowsToMembers(must(p) as PersonRow[], must(m) as MarriageRow[]), flags: must(f) as Flag[] }
 }
 
-const cols = async (m: Omit<FamilyMember, 'id'>) => ({
-  name: m.name, gender: m.gender, birth_year: m.birthYear ?? null, notes: m.notes ?? null,
-  photo_url: m.photoUrl ? (m.photoUrl.startsWith('data:') ? await shrinkPhoto(m.photoUrl) : m.photoUrl) : null,
-  parent_id: m.parentId ?? null, parent2_id: m.parent2Id ?? null,
-})
+// Photos are shrunk once, here, so a multi-megabyte phone picture never reaches the database.
+const photoValue = async (url?: string) => {
+  if (!url) return null
+  return url.startsWith('data:') ? await shrinkPhoto(url) : url
+}
 
+// One call = one transaction: the card and its marriages are written together,
+// so a failure cannot leave half a person behind.
 export async function addPerson(networkId: string, m: Omit<FamilyMember, 'id'>, claim: boolean): Promise<string> {
-  const sb = getClient()
   const id = crypto.randomUUID()
-  must(await sb.from('people').insert({ id, network_id: networkId, ...(await cols(m)) }))
-  for (const s of m.spouseIds ?? []) must(await sb.from('marriages').insert({ network_id: networkId, person_a: id, person_b: s }))
-  if (claim) must(await sb.rpc('claim_person', { p_person: id }))
+  must(await getClient().rpc('add_person', {
+    p_network: networkId,
+    p_id: id,
+    p_name: m.name,
+    p_gender: m.gender,
+    p_birth_year: m.birthYear ?? null,
+    p_notes: m.notes ?? null,
+    p_photo: await photoValue(m.photoUrl),
+    p_parent: m.parentId ?? null,
+    p_parent2: m.parent2Id ?? null,
+    p_spouses: m.spouseIds ?? [],
+    p_claim: claim,
+  }))
   return id
 }
 
-export async function updatePerson(networkId: string, prev: FamilyMember, m: FamilyMember) {
-  const sb = getClient()
-  const { error } = await sb.from('people').update(await cols(m)).eq('id', m.id)
-  if (error) throw new Error(error.message)
-  const before = new Set(prev.spouseIds ?? []), after = new Set(m.spouseIds ?? [])
-  for (const s of after) if (!before.has(s)) must(await sb.from('marriages').insert({ network_id: networkId, person_a: m.id, person_b: s }))
-  for (const s of before) if (!after.has(s)) await sb.from('marriages').delete().or(`and(person_a.eq.${m.id},person_b.eq.${s}),and(person_a.eq.${s},person_b.eq.${m.id})`)
+// Optimistic concurrency: the database refuses the write when the card changed
+// since `prev` was loaded, instead of silently replacing the other person's edit.
+export async function updatePerson(prev: FamilyMember, m: FamilyMember) {
+  const { error } = await getClient().rpc('update_person', {
+    p_id: m.id,
+    p_expected: prev.updatedAt ?? null,
+    p_name: m.name,
+    p_gender: m.gender,
+    p_birth_year: m.birthYear ?? null,
+    p_notes: m.notes ?? null,
+    p_photo: await photoValue(m.photoUrl),
+    p_parent: m.parentId ?? null,
+    p_parent2: m.parent2Id ?? null,
+    p_spouses: m.spouseIds ?? [],
+  })
+  if (error) throw new Error(error.message.replace(/^CONFLICT:\s*/, ''))
 }
 
 export const deletePerson = async (id: string) => { const { error } = await getClient().from('people').delete().eq('id', id); if (error) throw new Error(error.message) }

@@ -13,6 +13,7 @@ export interface FamilyMember {
   createdBy?: string // cloud: account that entered this card
   claimedBy?: string // cloud: account of the person this card is about
   hidden?: boolean // cloud: hidden by the founder after a flag
+  updatedAt?: string // cloud: server timestamp, sent back so concurrent edits are detected
 }
 
 export interface FamilyRelationship {

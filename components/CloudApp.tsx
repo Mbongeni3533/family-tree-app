@@ -133,7 +133,7 @@ function Network({ session }: { session: Session }) {
                 <>
                   <h2 className="mb-4 text-xl font-bold">Edit {detail.name}</h2>
                   <EditPersonForm member={detail} members={members.filter(m => !m.hidden)} onCancel={() => setMode('view')}
-                    onUpdate={m => run(async () => { await cloud.updatePerson(net.id, detail, m); setMode('view'); await reload() })} />
+                    onUpdate={m => run(async () => { await cloud.updatePerson(detail, m); setMode('view'); await reload() })} />
                 </>
               ) : detail ? (
                 <div className="space-y-3">

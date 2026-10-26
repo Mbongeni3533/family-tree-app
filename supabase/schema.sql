@@ -13,7 +13,7 @@
 create table public.networks (
   id uuid primary key default gen_random_uuid(),
   name text not null check (length(name) between 1 and 80),
-  founder_id uuid not null references auth.users(id),
+  founder_id uuid not null references auth.users(id) on delete restrict,
   created_at timestamptz not null default now()
 );
 
@@ -29,7 +29,7 @@ create table public.people (
   id uuid primary key default gen_random_uuid(),
   network_id uuid not null references public.networks(id) on delete cascade,
   created_by uuid default auth.uid() references auth.users(id) on delete set null, -- null = author deleted their account
-  claimed_by uuid references auth.users(id),
+  claimed_by uuid references auth.users(id) on delete set null,
   name text not null check (length(name) between 1 and 120),
   gender text not null default 'other' check (gender in ('male', 'female', 'other')),
   birth_year int check (birth_year between 1000 and 2200),
@@ -39,11 +39,12 @@ create table public.people (
   parent2_id uuid references public.people(id) on delete set null,
   hidden boolean not null default false,
   created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(), -- bumped on every write; used to detect concurrent edits
   check (parent_id is null or parent_id <> id),
   check (parent2_id is null or (parent2_id <> id and parent2_id is distinct from parent_id)),
   unique (network_id, claimed_by)
 );
-create index on public.people (network_id);
+create index people_network_id_idx on public.people (network_id);
 
 create table public.marriages (
   id uuid primary key default gen_random_uuid(),
@@ -61,7 +62,7 @@ create table public.invites (
   network_id uuid not null references public.networks(id) on delete cascade,
   person_id uuid not null references public.people(id) on delete cascade,
   token text not null unique,
-  created_by uuid not null references auth.users(id),
+  created_by uuid not null references auth.users(id) on delete cascade,
   created_at timestamptz not null default now(),
   expires_at timestamptz not null default now() + interval '14 days',
   used_by uuid references auth.users(id) on delete set null,
@@ -73,7 +74,7 @@ create table public.flags (
   id uuid primary key default gen_random_uuid(),
   network_id uuid not null references public.networks(id) on delete cascade,
   person_id uuid not null references public.people(id) on delete cascade,
-  flagged_by uuid not null default auth.uid() references auth.users(id),
+  flagged_by uuid not null default auth.uid() references auth.users(id) on delete cascade,
   reason text not null check (length(reason) between 3 and 500),
   status text not null default 'open' check (status in ('open', 'dismissed', 'hidden')),
   created_at timestamptz not null default now(),
@@ -102,6 +103,39 @@ begin
   return new;
 end $$;
 create trigger people_network before insert or update on public.people for each row execute function public.check_people_network();
+
+-- updated_at is what lets two relatives avoid overwriting each other's edits
+create function public.touch_updated_at() returns trigger language plpgsql as $$
+begin
+  new.updated_at := now();
+  return new;
+end $$;
+create trigger people_touch_updated_at before update on public.people for each row execute function public.touch_updated_at();
+
+-- nobody can become their own ancestor
+create function public.check_people_cycle() returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.parent_id is null and new.parent2_id is null then
+    return new;
+  end if;
+  -- UNION (not UNION ALL) de-duplicates, so legacy loops in the data cannot hang this
+  if exists (
+    with recursive ancestors(id) as (
+      select x from unnest(array[new.parent_id, new.parent2_id]) as x where x is not null
+      union
+      select y
+        from ancestors a
+        join public.people p on p.id = a.id
+        cross join lateral unnest(array[p.parent_id, p.parent2_id]) as y
+       where y is not null
+    )
+    select 1 from ancestors where id = new.id
+  ) then
+    raise exception 'a person cannot be their own ancestor';
+  end if;
+  return new;
+end $$;
+create trigger people_cycle before insert or update of parent_id, parent2_id on public.people for each row execute function public.check_people_cycle();
 
 create function public.check_marriage_network() returns trigger language plpgsql security definer set search_path = public as $$
 begin
@@ -142,7 +176,7 @@ create function public.create_invite(p_person uuid) returns text language plpgsq
 declare p people; tok text;
 begin
   select * into p from people where id = p_person;
-  if not found or p.created_by <> auth.uid() or p.claimed_by is not null or not is_member(p.network_id) then
+  if not found or p.created_by is distinct from auth.uid() or p.claimed_by is not null or not is_member(p.network_id) then
     raise exception 'you can only invite for an unclaimed card you added'; end if;
   update invites set revoked = true where person_id = p_person and used_at is null and not revoked;
   tok := replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
@@ -239,6 +273,85 @@ begin
   delete from auth.users where id = me;
 end $$;
 
+-- One call = one transaction: a card and its marriages are written together or not at all
+create function public.add_person(
+  p_network uuid, p_id uuid, p_name text, p_gender text, p_birth_year int,
+  p_notes text, p_photo text, p_parent uuid, p_parent2 uuid, p_spouses uuid[], p_claim boolean
+) returns uuid language plpgsql security definer set search_path = public as $$
+declare
+  me uuid := auth.uid();
+  s uuid;
+begin
+  if me is null then raise exception 'not signed in'; end if;
+  if not is_member(p_network) then raise exception 'you are not a member of this tree'; end if;
+
+  insert into people (id, network_id, name, gender, birth_year, notes, photo_url, parent_id, parent2_id)
+  values (p_id, p_network, p_name, p_gender, p_birth_year, p_notes, p_photo, p_parent, p_parent2);
+
+  foreach s in array array_remove(coalesce(p_spouses, '{}'::uuid[]), null) loop
+    if s <> p_id and exists (select 1 from people where id = s and network_id = p_network) then
+      insert into marriages (network_id, person_a, person_b)
+      values (p_network, least(p_id, s), greatest(p_id, s))
+      on conflict do nothing;
+    end if;
+  end loop;
+
+  if p_claim then
+    update people set claimed_by = me
+     where id = p_id and created_by = me and claimed_by is null;
+    if not found then raise exception 'this card cannot be claimed'; end if;
+  end if;
+
+  return p_id;
+end $$;
+
+-- p_expected is the updated_at the editor loaded; a mismatch refuses the write
+-- instead of silently replacing somebody else's edit.
+create function public.update_person(
+  p_id uuid, p_expected timestamptz,
+  p_name text, p_gender text, p_birth_year int, p_notes text, p_photo text,
+  p_parent uuid, p_parent2 uuid, p_spouses uuid[]
+) returns timestamptz language plpgsql security definer set search_path = public as $$
+declare
+  me uuid := auth.uid();
+  nid uuid;
+  ts timestamptz;
+  s uuid;
+  wanted uuid[] := array_remove(coalesce(p_spouses, '{}'::uuid[]), null);
+begin
+  if me is null then raise exception 'not signed in'; end if;
+
+  select network_id into nid from people where id = p_id;
+  if nid is null then raise exception 'that card no longer exists'; end if;
+  if not exists (select 1 from people where id = p_id and (created_by = me or claimed_by = me)) then
+    raise exception 'you can only edit a card you entered or claimed';
+  end if;
+
+  update people
+     set name = p_name, gender = p_gender, birth_year = p_birth_year, notes = p_notes,
+         photo_url = p_photo, parent_id = p_parent, parent2_id = p_parent2
+   where id = p_id and updated_at = p_expected
+   returning updated_at into ts;
+
+  if ts is null then
+    raise exception 'CONFLICT: someone else changed this card while you were editing. Reload the tree and try again.';
+  end if;
+
+  delete from marriages
+   where (person_a = p_id or person_b = p_id)
+     and (case when person_a = p_id then person_b else person_a end) <> all (wanted);
+
+  foreach s in array wanted loop
+    if s <> p_id and exists (select 1 from people where id = s and network_id = nid) then
+      insert into marriages (network_id, person_a, person_b)
+      values (nid, least(p_id, s), greatest(p_id, s))
+      on conflict do nothing;
+    end if;
+  end loop;
+
+  return ts;
+end $$;
+
 -- ---------- row level security ----------
 alter table public.networks enable row level security;
 alter table public.network_members enable row level security;
@@ -262,7 +375,8 @@ create policy people_delete on public.people for delete to authenticated using (
 create policy marriages_read on public.marriages for select to authenticated using (is_member(network_id));
 create policy marriages_insert on public.marriages for insert to authenticated
   with check (is_member(network_id) and created_by = auth.uid() and (owns_person(person_a) or owns_person(person_b)));
-create policy marriages_delete on public.marriages for delete to authenticated using (created_by = auth.uid());
+create policy marriages_delete on public.marriages for delete to authenticated
+  using (created_by = auth.uid() or owns_person(person_a) or owns_person(person_b));
 
 create policy invites_read on public.invites for select to authenticated using (created_by = auth.uid());
 
@@ -279,6 +393,11 @@ grant insert (network_id, person_a, person_b) on public.marriages to authenticat
 grant delete on public.marriages to authenticated;
 grant insert (network_id, person_id, reason) on public.flags to authenticated;
 
-revoke all on function public.transfer_founder, public.delete_network, public.delete_my_account, public.create_network, public.claim_person, public.create_invite, public.invite_preview, public.accept_invite, public.resolve_flag, public.set_hidden, public.is_member, public.is_founder, public.owns_person from public, anon;
-grant execute on function public.transfer_founder, public.delete_network, public.delete_my_account, public.is_member, public.is_founder, public.owns_person, public.create_network, public.claim_person, public.create_invite, public.accept_invite, public.resolve_flag, public.set_hidden to authenticated;
+revoke all on function public.transfer_founder, public.delete_network, public.delete_my_account, public.create_network, public.claim_person, public.create_invite, public.invite_preview, public.accept_invite, public.resolve_flag, public.set_hidden, public.add_person, public.update_person, public.is_member, public.is_founder, public.owns_person from public, anon;
+grant execute on function public.transfer_founder, public.delete_network, public.delete_my_account, public.is_member, public.is_founder, public.owns_person, public.create_network, public.claim_person, public.create_invite, public.accept_invite, public.resolve_flag, public.set_hidden, public.add_person, public.update_person to authenticated;
 grant execute on function public.invite_preview to anon, authenticated;
+
+-- ---------- indexes for the lookups the app does ----------
+create index people_parent_idx on public.people (parent_id, parent2_id);
+create index marriages_network_idx on public.marriages (network_id);
+create index flags_network_status_idx on public.flags (network_id, status);
