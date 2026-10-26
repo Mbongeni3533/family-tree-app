@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
@@ -27,6 +28,9 @@
     "typescript": "^5"
   },
   "description": "A modern web application for building and visualizing your family tree using Next.js, React, and TypeScript.",
+  "engines": {
+    "node": ">=20.9"
+  },
   "main": "index.js",
   "keywords": []
 }

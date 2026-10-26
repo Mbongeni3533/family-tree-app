@@ -26,7 +26,7 @@ A modern web application for building and visualizing your family tree using Nex
 ## Getting Started
 
 ### Prerequisites
-- Node.js 18+
+- Node.js 20.9 or newer (required by Next.js 16)
 - npm or yarn
 
 ### Installation
