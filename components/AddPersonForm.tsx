@@ -4,6 +4,7 @@ import SpousePicker from '@/components/SpousePicker'
 import DatePartsInput from '@/components/DatePartsInput'
 import { fileToPhoto } from '@/services/photos'
 import { composeDate, EMPTY_PARTS, parseDate, yearOf } from '@/services/dates'
+import { similarMembers } from '@/services/names'
 import type { DateParts } from '@/services/dates'
 import { useState } from 'react'
 import type { FamilyMember } from '@/types/family'
@@ -17,12 +18,15 @@ interface AddPersonFormProps {
   initialSpouseIds?: string[]
   /** The new card is the parent of this person. */
   asParentOf?: string
+  /** Cards that could be linked instead of creating a duplicate. */
+  linkCandidates?: FamilyMember[]
+  onLinkExisting?: (id: string) => void
 }
 
 const field = 'w-full px-3 py-2 border border-[#2a2418] rounded-md text-[#f5f0e1]'
 const label = 'block text-sm font-medium text-[#e6dfc8] mb-1'
 
-export default function AddPersonForm({ members, onAdd, onCancel, initialParentId, initialSpouseIds, asParentOf }: AddPersonFormProps) {
+export default function AddPersonForm({ members, onAdd, onCancel, initialParentId, initialSpouseIds, asParentOf, linkCandidates, onLinkExisting }: AddPersonFormProps) {
   const [formData, setFormData] = useState({
     name: '',
     gender: 'other' as FamilyMember['gender'],
@@ -40,6 +44,9 @@ export default function AddPersonForm({ members, onAdd, onCancel, initialParentI
   const [photoBusy, setPhotoBusy] = useState(false)
   const [photoError, setPhotoError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [pick, setPick] = useState('')
+
+  const suggestions = linkCandidates?.length ? similarMembers(formData.name, linkCandidates) : []
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -102,6 +109,31 @@ export default function AddPersonForm({ members, onAdd, onCancel, initialParentI
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {linkCandidates && linkCandidates.length > 0 && onLinkExisting && (
+        <div className="rounded-lg border border-[#d4af37] bg-[#2a2310] p-3 space-y-2">
+          <label className={label}>Already has a card? Link it instead</label>
+          <div className="flex gap-2">
+            <select value={pick} onChange={e => setPick(e.target.value)} className={field}>
+              <option value="">Choose from {linkCandidates.length} existing card{linkCandidates.length === 1 ? '' : 's'}…</option>
+              {linkCandidates.map(c => (
+                <option key={c.id} value={c.id}>{c.name}{c.deceased ? ' †' : ''}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              disabled={!pick}
+              onClick={() => pick && onLinkExisting(pick)}
+              className="shrink-0 rounded-lg bg-[#d4af37] px-3 py-2 text-sm font-semibold text-[#0b0b0c] disabled:opacity-40"
+            >
+              Link
+            </button>
+          </div>
+          <p className="text-xs text-[#9a917c]">No new card is created — the existing one gets the relationship.</p>
+        </div>
+      )}
+
+      {linkCandidates && linkCandidates.length > 0 && <p className="text-center text-xs uppercase tracking-widest text-[#7a725f]">or add a new person</p>}
+
       <div>
         <label className={label}>Name *</label>
         <input
@@ -112,6 +144,24 @@ export default function AddPersonForm({ members, onAdd, onCancel, initialParentI
           className={field}
           placeholder="Enter name"
         />
+        {suggestions.length > 0 && onLinkExisting && (
+          <div className="mt-2 rounded-lg border border-[#2a2418] bg-[#14110a] p-2">
+            <p className="text-xs text-[#9a917c]">Similar name{suggestions.length > 1 ? 's' : ''} already in the tree:</p>
+            <div className="mt-1 flex flex-wrap gap-2">
+              {suggestions.map(s => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => onLinkExisting(s.id)}
+                  className="rounded-full border border-[#d4af37] px-2 py-0.5 text-xs text-[#d4af37] hover:bg-[#2a2310]"
+                >
+                  {s.name}{s.deceased ? ' †' : ''}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-[#7a725f]">Click one to link it rather than creating a duplicate.</p>
+          </div>
+        )}
       </div>
 
       <div>

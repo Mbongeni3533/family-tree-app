@@ -94,6 +94,52 @@ function Network({ session }: { session: Session }) {
   // Opens the add form with the relationship already pointing the right way.
   const startAdd = (p: { asParentOf?: string; parentId?: string; spouseIds?: string[] }) => { setPrefill(p); setMode('add') }
   const prefillTitle = prefill?.asParentOf ? 'Add a parent' : prefill?.parentId ? 'Add a child' : prefill?.spouseIds ? 'Add a partner' : 'Add a person'
+
+  // Cards that could be linked instead of creating a duplicate.
+  const visibleMembers = members.filter(m => !m.hidden)
+  const linkCandidates = !prefill
+    ? []
+    : prefill.asParentOf
+      ? visibleMembers.filter(m => m.id !== prefill.asParentOf)
+      : prefill.parentId
+        ? visibleMembers.filter(m => m.id !== prefill.parentId)
+        : prefill.spouseIds?.length
+          ? visibleMembers.filter(m => !prefill.spouseIds!.includes(m.id))
+          : []
+
+  const linkExisting = (existingId: string) => run(async () => {
+    const existing = members.find(m => m.id === existingId)
+    if (!existing) throw new Error('That card no longer exists')
+
+    if (prefill?.asParentOf) {
+      const child = members.find(m => m.id === prefill.asParentOf)
+      if (!child) throw new Error('That card no longer exists')
+      if (child.parentId && child.parent2Id) throw new Error(`${child.name} already has two parents`)
+      await cloud.updatePerson(child, {
+        ...child,
+        parentId: child.parentId ?? existingId,
+        parent2Id: child.parentId ? (child.parent2Id ?? existingId) : child.parent2Id,
+      })
+    } else if (prefill?.parentId) {
+      if (existing.parentId && existing.parent2Id) throw new Error(`${existing.name} already has two parents`)
+      await cloud.updatePerson(existing, {
+        ...existing,
+        parentId: existing.parentId ?? prefill.parentId,
+        parent2Id: existing.parentId ? (existing.parent2Id ?? prefill.parentId) : existing.parent2Id,
+      })
+    } else if (prefill?.spouseIds?.length) {
+      const anchor = members.find(m => m.id === prefill.spouseIds![0])
+      if (!anchor) throw new Error('That card no longer exists')
+      if ((anchor.spouseIds ?? []).includes(existingId)) throw new Error('Those two are already partners')
+      await cloud.updatePerson(anchor, { ...anchor, spouseIds: [...(anchor.spouseIds ?? []), existingId] })
+    } else {
+      throw new Error('Open a card and use + Parent, + Partner or + Child to link a relative')
+    }
+
+    setMode('view')
+    setPrefill(null)
+    await reload()
+  })
   const detail = selected
   const creatorLabel = detail ? (mine(detail) ? 'you' : 'another relative') : ''
 
@@ -142,6 +188,8 @@ function Network({ session }: { session: Session }) {
                     initialParentId={prefill?.parentId}
                     initialSpouseIds={prefill?.spouseIds}
                     asParentOf={prefill?.asParentOf}
+                    linkCandidates={linkCandidates}
+                    onLinkExisting={linkExisting}
                   />
                 </>
               ) : mode === 'edit' && detail ? (
