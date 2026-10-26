@@ -2,7 +2,9 @@
 
 import SpousePicker from '@/components/SpousePicker'
 import DatePartsInput from '@/components/DatePartsInput'
+import PlaceInput from '@/components/PlaceInput'
 import { fileToPhoto } from '@/services/photos'
+import { knownPlaces } from '@/services/places'
 import { composeDate, EMPTY_PARTS, parseDate, yearOf } from '@/services/dates'
 import { similarMembers } from '@/services/names'
 import type { DateParts } from '@/services/dates'
@@ -39,7 +41,9 @@ export default function AddPersonForm({ members, onAdd, onCancel, initialParentI
   const [death, setDeath] = useState<DateParts>({ ...EMPTY_PARTS })
   const [deceased, setDeceased] = useState(false)
   const [birthPlace, setBirthPlace] = useState('')
+  const [deathPlace, setDeathPlace] = useState('')
   const [residence, setResidence] = useState('')
+  const places = knownPlaces(members)
 
   const [photo, setPhoto] = useState<string | null>(null)
   const [photoBusy, setPhotoBusy] = useState(false)
@@ -89,6 +93,7 @@ export default function AddPersonForm({ members, onAdd, onCancel, initialParentI
       deathDate,
       residence: residence.trim() || undefined,
       birthPlace: birthPlace.trim() || undefined,
+      deathPlace: deceased ? deathPlace.trim() || undefined : undefined,
       gender: formData.gender,
       notes: formData.notes.trim() || undefined,
       parentId: formData.parentId || undefined,
@@ -106,6 +111,7 @@ export default function AddPersonForm({ members, onAdd, onCancel, initialParentI
     setDeath({ ...EMPTY_PARTS })
     setDeceased(false)
     setBirthPlace('')
+    setDeathPlace('')
     setResidence('')
     setPhoto(null)
   }
@@ -174,10 +180,10 @@ export default function AddPersonForm({ members, onAdd, onCancel, initialParentI
 
       <div>
         <label className={label}>Birth area</label>
-        <input
-          type="text"
+        <PlaceInput
           value={birthPlace}
-          onChange={(e) => setBirthPlace(e.target.value)}
+          onChange={setBirthPlace}
+          suggestions={places}
           className={field}
           placeholder="e.g. Manzini, Eswatini"
         />
@@ -194,19 +200,31 @@ export default function AddPersonForm({ members, onAdd, onCancel, initialParentI
           Deceased
         </label>
         {deceased && (
-          <div>
-            <label className={label}>Date of death</label>
-            <DatePartsInput value={death} onChange={setDeath} />
+          <div className="space-y-3">
+            <div>
+              <label className={label}>Date of death</label>
+              <DatePartsInput value={death} onChange={setDeath} />
+            </div>
+            <div>
+              <label className={label}>Place of death</label>
+              <PlaceInput
+                value={deathPlace}
+                onChange={setDeathPlace}
+                suggestions={places}
+                className={field}
+                placeholder="e.g. Mbabane, Eswatini"
+              />
+            </div>
           </div>
         )}
       </div>
 
       <div>
         <label className={label}>Residential area</label>
-        <input
-          type="text"
+        <PlaceInput
           value={residence}
-          onChange={(e) => setResidence(e.target.value)}
+          onChange={setResidence}
+          suggestions={places}
           className={field}
           placeholder="e.g. Mbabane, Eswatini"
         />

@@ -62,6 +62,7 @@ export function exportGedcom(members: FamilyMember[]): string {
       const death = toGedcomDate(m.deathDate)
       L.push('1 DEAT')
       if (death) L.push(`2 DATE ${death}`)
+      if (m.deathPlace) L.push(`2 PLAC ${m.deathPlace}`)
     }
     if (m.residence) L.push('1 RESI', `2 ADDR ${m.residence}`)
     if (m.notes) L.push(...noteLines(1, 'NOTE', m.notes))
@@ -137,6 +138,7 @@ export function parseGedcom(text: string): { members: FamilyMember[]; warnings: 
     const deathDate = deathText ? fromGedcomDate(deathText) : undefined
     const residence = (child(n, 'RESI')?.kids.find(k => k.tag === 'ADDR')?.value ?? child(n, 'RESI')?.value ?? '').trim()
     const birthPlace = (child(n, 'BIRT')?.kids.find(k => k.tag === 'PLAC')?.value ?? '').trim()
+    const deathPlace = (child(n, 'DEAT')?.kids.find(k => k.tag === 'PLAC')?.value ?? '').trim()
     const notes = n.kids.filter(k => k.tag === 'NOTE' && !k.value.startsWith('@')).map(k => k.value).join('\n\n')
     members.set(id, {
       id, name,
@@ -147,6 +149,7 @@ export function parseGedcom(text: string): { members: FamilyMember[]; warnings: 
       deathDate,
       residence: residence || undefined,
       birthPlace: birthPlace || undefined,
+      deathPlace: deathPlace || undefined,
       notes: notes || undefined,
       addedAt: now + i,
     })

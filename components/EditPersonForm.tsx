@@ -2,7 +2,9 @@
 
 import SpousePicker from '@/components/SpousePicker'
 import DatePartsInput from '@/components/DatePartsInput'
+import PlaceInput from '@/components/PlaceInput'
 import { spouseMap, ownSpouses } from '@/services/relations'
+import { knownPlaces } from '@/services/places'
 import { fileToPhoto } from '@/services/photos'
 import { composeDate, EMPTY_PARTS, parseDate, splitDate, yearOf } from '@/services/dates'
 import type { DateParts } from '@/services/dates'
@@ -32,7 +34,9 @@ export default function EditPersonForm({ member, members, onUpdate, onCancel }: 
   const [death, setDeath] = useState<DateParts>(() => splitDate(member.deathDate))
   const [deceased, setDeceased] = useState(member.deceased ?? false)
   const [birthPlace, setBirthPlace] = useState(member.birthPlace ?? '')
+  const [deathPlace, setDeathPlace] = useState(member.deathPlace ?? '')
   const [residence, setResidence] = useState(member.residence ?? '')
+  const places = knownPlaces(members)
 
   const [photo, setPhoto] = useState<string | null>(member.photoUrl ?? null)
   const [photoBusy, setPhotoBusy] = useState(false)
@@ -81,6 +85,7 @@ export default function EditPersonForm({ member, members, onUpdate, onCancel }: 
       deathDate,
       residence: residence.trim() || undefined,
       birthPlace: birthPlace.trim() || undefined,
+      deathPlace: deceased ? deathPlace.trim() || undefined : undefined,
       gender: formData.gender,
       notes: formData.notes.trim() || undefined,
       parentId: formData.parentId || undefined,
@@ -112,10 +117,10 @@ export default function EditPersonForm({ member, members, onUpdate, onCancel }: 
 
       <div>
         <label className={label}>Birth area</label>
-        <input
-          type="text"
+        <PlaceInput
           value={birthPlace}
-          onChange={(e) => setBirthPlace(e.target.value)}
+          onChange={setBirthPlace}
+          suggestions={places}
           className={field}
           placeholder="e.g. Manzini, Eswatini"
         />
@@ -132,19 +137,31 @@ export default function EditPersonForm({ member, members, onUpdate, onCancel }: 
           Deceased
         </label>
         {deceased && (
-          <div>
-            <label className={label}>Date of death</label>
-            <DatePartsInput value={death} onChange={setDeath} />
+          <div className="space-y-3">
+            <div>
+              <label className={label}>Date of death</label>
+              <DatePartsInput value={death} onChange={setDeath} />
+            </div>
+            <div>
+              <label className={label}>Place of death</label>
+              <PlaceInput
+                value={deathPlace}
+                onChange={setDeathPlace}
+                suggestions={places}
+                className={field}
+                placeholder="e.g. Mbabane, Eswatini"
+              />
+            </div>
           </div>
         )}
       </div>
 
       <div>
         <label className={label}>Residential area</label>
-        <input
-          type="text"
+        <PlaceInput
           value={residence}
-          onChange={(e) => setResidence(e.target.value)}
+          onChange={setResidence}
+          suggestions={places}
           className={field}
           placeholder="e.g. Mbabane, Eswatini"
         />

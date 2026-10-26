@@ -38,6 +38,7 @@ create table public.people (
   deceased boolean not null default false,
   residence text check (residence is null or length(residence) <= 120),
   birth_place text check (birth_place is null or length(birth_place) <= 120),
+  death_place text check (death_place is null or length(death_place) <= 120),
   notes text check (length(notes) <= 4000),
   photo_url text check (length(photo_url) <= 200000),
   parent_id uuid references public.people(id) on delete set null,
@@ -284,7 +285,8 @@ create function public.add_person(
   p_notes text, p_photo text, p_parent uuid, p_parent2 uuid, p_spouses uuid[], p_claim boolean,
   p_birth_date text default null, p_death_date text default null,
   p_deceased boolean default false, p_residence text default null,
-  p_as_parent_of uuid default null, p_birth_place text default null
+  p_as_parent_of uuid default null, p_birth_place text default null,
+  p_death_place text default null
 ) returns uuid language plpgsql security definer set search_path = public as $$
 declare
   me uuid := auth.uid();
@@ -295,9 +297,10 @@ begin
   if not is_member(p_network) then raise exception 'you are not a member of this tree'; end if;
 
   insert into people (id, network_id, name, gender, birth_year, birth_date, death_date, deceased,
-                      residence, birth_place, notes, photo_url, parent_id, parent2_id)
+                      residence, birth_place, death_place, notes, photo_url, parent_id, parent2_id)
   values (p_id, p_network, p_name, p_gender, p_birth_year, p_birth_date, p_death_date,
-          coalesce(p_deceased, false), p_residence, p_birth_place, p_notes, p_photo, p_parent, p_parent2);
+          coalesce(p_deceased, false), p_residence, p_birth_place, p_death_place,
+          p_notes, p_photo, p_parent, p_parent2);
 
   foreach s in array array_remove(coalesce(p_spouses, '{}'::uuid[]), null) loop
     if s <> p_id and exists (select 1 from people where id = s and network_id = p_network) then
@@ -344,7 +347,7 @@ create function public.update_person(
   p_parent uuid, p_parent2 uuid, p_spouses uuid[],
   p_birth_date text default null, p_death_date text default null,
   p_deceased boolean default false, p_residence text default null,
-  p_birth_place text default null
+  p_birth_place text default null, p_death_place text default null
 ) returns timestamptz language plpgsql security definer set search_path = public as $$
 declare
   me uuid := auth.uid();
@@ -364,7 +367,8 @@ begin
   update people
      set name = p_name, gender = p_gender, birth_year = p_birth_year,
          birth_date = p_birth_date, death_date = p_death_date,
-         deceased = coalesce(p_deceased, false), residence = p_residence, birth_place = p_birth_place,
+         deceased = coalesce(p_deceased, false), residence = p_residence,
+         birth_place = p_birth_place, death_place = p_death_place,
          notes = p_notes, photo_url = p_photo, parent_id = p_parent, parent2_id = p_parent2
    where id = p_id and updated_at = p_expected
    returning updated_at into ts;
