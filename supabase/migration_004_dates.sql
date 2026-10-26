@@ -34,8 +34,12 @@ update public.people set birth_date = birth_year::text
  where birth_date is null and birth_year is not null;
 
 -- Re-create the write path: the parameter list changes, so the old ones go.
+-- Both the pre-004 and post-004 signatures are dropped, so running this file
+-- a second time is a no-op instead of failing with "already exists".
 drop function if exists public.add_person(uuid, uuid, text, text, int, text, text, uuid, uuid, uuid[], boolean);
+drop function if exists public.add_person(uuid, uuid, text, text, int, text, text, uuid, uuid, uuid[], boolean, text, text, boolean, text, uuid);
 drop function if exists public.update_person(uuid, timestamptz, text, text, int, text, text, uuid, uuid, uuid[]);
+drop function if exists public.update_person(uuid, timestamptz, text, text, int, text, text, uuid, uuid, uuid[], text, text, boolean, text);
 
 create function public.add_person(
   p_network uuid, p_id uuid, p_name text, p_gender text, p_birth_year int,
