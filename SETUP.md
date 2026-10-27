@@ -22,6 +22,7 @@ The app runs in two modes:
 ## 3. Authentication settings (Supabase -> Authentication)
 - **Providers -> Email**: keep enabled. Leave "Confirm email" ON for production.
 - **URL Configuration**: set **Site URL** to your live address (e.g. https://your-app.vercel.app). Invite links use the address the app is opened from.
+  Also add both redirects under **Redirect URLs**: `https://your-app.vercel.app/join` and `https://your-app.vercel.app/reset`. Supabase ignores targets that are not listed, which silently breaks invite links and password resets.
 - **SMTP Settings**: set up custom SMTP (you already have Zoho). Supabase's built-in email sender allows only a few emails per hour, so sign-ups will stall without this.
 
 ## 4. Deploy (Vercel)
