@@ -14,6 +14,83 @@ export interface PlacedNode { member: FamilyMember; x: number; y: number; rank: 
 export interface PlacedEdge { d: string; kind: 'parent' | 'spouse'; mx?: number; my?: number }
 export interface TreeLayout { nodes: PlacedNode[]; edges: PlacedEdge[]; width: number; height: number; generations: number }
 
+/**
+ * Rebuilds the connector lines from whatever positions the cards currently
+ * have, so hand-dragged cards keep their lines attached. Simple elbow routing:
+ * a marriage is a horizontal run (or an elbow when one partner sits on another
+ * row), and children hang from their parents' marriage point when it exists.
+ */
+export function edgesFromPositions(nodes: PlacedNode[], members: FamilyMember[]): PlacedEdge[] {
+  const byId = new Map(nodes.map(n => [n.member.id, n]))
+  const sp = spouseMap(members)
+  const edges: PlacedEdge[] = []
+  const marriagePoint = new Map<string, [number, number]>()
+
+  for (const n of nodes) {
+    for (const sid of sp.get(n.member.id) ?? []) {
+      if (n.member.id > sid) continue // each marriage once
+      const other = byId.get(sid)
+      if (!other) continue
+      const key = [n.member.id, sid].sort().join('|')
+      if (marriagePoint.has(key)) continue
+
+      let d: string
+      let mx: number
+      let my: number
+
+      if (Math.abs(n.y - other.y) < 1) {
+        const left = n.x <= other.x ? n : other
+        const right = left === n ? other : n
+        const x1 = left.x + CARD_W
+        const x2 = right.x
+        d = `M${x1} ${left.y + CARD_H / 2} H${x2}`
+        mx = (x1 + x2) / 2
+        my = left.y + CARD_H / 2
+      } else {
+        const upper = n.y < other.y ? n : other
+        const lower = upper === n ? other : n
+        const x1 = upper.x + CARD_W / 2
+        const y1 = upper.y + CARD_H
+        const x2 = lower.x + CARD_W / 2
+        const y2 = lower.y
+        const midY = (y1 + y2) / 2
+        d = `M${x1} ${y1} V${midY} H${x2} V${y2}`
+        mx = x1
+        my = midY
+      }
+
+      edges.push({ d, kind: 'spouse', mx, my })
+      marriagePoint.set(key, [mx, my])
+    }
+  }
+
+  for (const child of nodes) {
+    const parents = [child.member.parentId, child.member.parent2Id]
+      .filter((p): p is string => !!p && byId.has(p))
+    if (!parents.length) continue
+
+    const tx = child.x + CARD_W / 2
+    const ty = child.y
+    const sources: [number, number][] = []
+    const pair = parents.length === 2 ? [...parents].sort().join('|') : ''
+    const mp = pair ? marriagePoint.get(pair) : undefined
+
+    if (mp) sources.push(mp)
+    else parents.forEach(p => {
+      const pn = byId.get(p)!
+      sources.push([pn.x + CARD_W / 2, pn.y + CARD_H])
+    })
+
+    for (const [sx, sy] of sources) {
+      if (ty <= sy) continue
+      const midY = sy + (ty - sy) / 2
+      edges.push({ d: `M${sx} ${sy} V${midY} H${tx} V${ty}`, kind: 'parent' })
+    }
+  }
+
+  return edges
+}
+
 interface Unit { members: FamilyMember[]; rank: number; x: number; order: number }
 
 /**

@@ -1,8 +1,9 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FamilyMember } from '@/types/family'
-import { computeLayout, CARD_W, CARD_H } from '@/services/treeLayout'
+import { computeLayout, edgesFromPositions, CARD_W, CARD_H } from '@/services/treeLayout'
+import type { PlacedNode } from '@/services/treeLayout'
 import { viewMembers } from '@/services/treeView'
 
 interface VisualTreeProps {
@@ -12,6 +13,18 @@ interface VisualTreeProps {
 }
 
 const ACCENT: Record<FamilyMember['gender'], string> = { male: '#7fb2ff', female: '#f0a0c8', other: '#d4af37' }
+const POSITIONS_KEY = 'family-tree-manual-positions'
+
+type Offsets = Record<string, { dx: number; dy: number }>
+
+function loadOffsets(): Offsets {
+  if (typeof window === 'undefined') return {}
+  try {
+    return JSON.parse(window.localStorage.getItem(POSITIONS_KEY) ?? '{}') as Offsets
+  } catch {
+    return {}
+  }
+}
 
 export default function VisualFamilyTree({ members, onDeleteMember, onEditMember }: VisualTreeProps) {
   const [hovered, setHovered] = useState<string | null>(null)
@@ -19,10 +32,35 @@ export default function VisualFamilyTree({ members, onDeleteMember, onEditMember
   const box = useRef<HTMLDivElement>(null)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [focusId, setFocusId] = useState<string | null>(null)
+  const [offsets, setOffsets] = useState<Offsets>(() => loadOffsets())
+  const dragRef = useRef<{ id: string; startX: number; startY: number; dx: number; dy: number } | null>(null)
+  const movedRef = useRef(false)
+
   const view = useMemo(() => viewMembers(members, collapsed, focusId), [members, collapsed, focusId])
   const layout = useMemo(() => computeLayout(view.visible), [view])
   const toggle = (id: string) => setCollapsed(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const focusName = focusId ? members.find(m => m.id === focusId)?.name : null
+
+  // hand-placed cards keep an offset from their computed position
+  const placed: PlacedNode[] = useMemo(
+    () => layout.nodes.map(n => {
+      const o = offsets[n.member.id]
+      return o ? { ...n, x: n.x + o.dx, y: n.y + o.dy } : n
+    }),
+    [layout, offsets]
+  )
+  const hasManual = placed.some(n => offsets[n.member.id])
+  const edges = useMemo(
+    () => (hasManual ? edgesFromPositions(placed, view.visible) : layout.edges),
+    [hasManual, placed, layout.edges, view.visible]
+  )
+
+  const width = Math.max(layout.width, ...placed.map(n => n.x + CARD_W), 0) + 32
+  const height = Math.max(layout.height, ...placed.map(n => n.y + CARD_H), 0) + 32
+
+  useEffect(() => {
+    try { window.localStorage.setItem(POSITIONS_KEY, JSON.stringify(offsets)) } catch { /* storage may be full */ }
+  }, [offsets])
 
   if (members.length === 0) {
     return (
@@ -36,6 +74,24 @@ export default function VisualFamilyTree({ members, onDeleteMember, onEditMember
   const clamp = (z: number) => Math.min(1.5, Math.max(0.25, Math.round(z * 100) / 100))
   const zoomBtn = 'min-w-9 rounded-lg border border-[#2a2418] px-3 py-1.5 text-[#d4af37] hover:bg-[#2a2310]'
 
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>, id: string) => {
+    const o = offsets[id] ?? { dx: 0, dy: 0 }
+    dragRef.current = { id, startX: e.clientX, startY: e.clientY, dx: o.dx, dy: o.dy }
+    movedRef.current = false
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current
+    if (!d) return
+    const dx = d.dx + (e.clientX - d.startX) / zoom
+    const dy = d.dy + (e.clientY - d.startY) / zoom
+    if (Math.abs(dx - d.dx) > 3 || Math.abs(dy - d.dy) > 3) movedRef.current = true
+    setOffsets(prev => ({ ...prev, [d.id]: { dx, dy } }))
+  }
+
+  const endDrag = () => { dragRef.current = null }
+
   return (
     <div className="bg-[#14110a] border border-[#2a2418] rounded-xl p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -43,19 +99,24 @@ export default function VisualFamilyTree({ members, onDeleteMember, onEditMember
           <h2 className="text-xl font-bold text-[#f5f0e1]">Family Tree</h2>
           <p className="text-sm text-[#9a917c]">{view.visible.length === members.length ? `${members.length} members` : `Showing ${view.visible.length} of ${members.length} members`} · {layout.generations} generation{layout.generations > 1 ? 's' : ''}</p>
         </div>
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
           <button onClick={() => setZoom(clamp(zoom - 0.15))} className={zoomBtn} aria-label="Zoom out">−</button>
           <button onClick={() => setZoom(clamp(zoom + 0.15))} className={zoomBtn} aria-label="Zoom in">+</button>
           <button
             onClick={() => {
               const el = box.current
-              if (el) setZoom(clamp((el.clientWidth - 8) / layout.width))
+              if (el) setZoom(clamp((el.clientWidth - 8) / width))
             }}
             className={zoomBtn}
           >
             Fit
           </button>
           <button onClick={() => setZoom(1)} className={zoomBtn}>100%</button>
+          {hasManual && (
+            <button onClick={() => setOffsets({})} className={zoomBtn} title="Put every card back where the layout puts it">
+              Reset positions
+            </button>
+          )}
           <button onClick={() => setCollapsed(new Set(members.filter(m => view.hasKids.has(m.id) || members.some(k => k.parentId === m.id || k.parent2Id === m.id)).filter(m => m.parentId || m.parent2Id).map(m => m.id)))} className="rounded-lg border border-[#2a2418] px-3 py-1.5 text-[#d4af37] hover:bg-[#2a2310]">Collapse all</button>
           <button onClick={() => setCollapsed(new Set())} className="rounded-lg border border-[#2a2418] px-3 py-1.5 text-[#d4af37] hover:bg-[#2a2310]">Expand all</button>
           <span className="w-12 text-right text-[#9a917c]">{Math.round(zoom * 100)}%</span>
@@ -68,11 +129,12 @@ export default function VisualFamilyTree({ members, onDeleteMember, onEditMember
           <button onClick={() => setFocusId(null)} className="text-[#d4af37] hover:underline">Show everyone ✕</button>
         </div>
       )}
+
       <div ref={box} className="max-h-[70vh] overflow-auto rounded-lg border border-[#2a2418] bg-[#0b0b0c]">
-        <div style={{ width: layout.width * zoom, height: layout.height * zoom }}>
-          <div id="family-tree-content" className="relative bg-[#0b0b0c]" style={{ width: layout.width, height: layout.height, transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
-            <svg className="pointer-events-none absolute inset-0" width={layout.width} height={layout.height}>
-              {layout.edges.map((e, i) => e.kind === 'spouse' ? (
+        <div style={{ width: width * zoom, height: height * zoom }}>
+          <div id="family-tree-content" className="relative select-none bg-[#0b0b0c]" style={{ width, height, transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
+            <svg className="pointer-events-none absolute inset-0" width={width} height={height}>
+              {edges.map((e, i) => e.kind === 'spouse' ? (
                 <g key={i}>
                   <path d={e.d} stroke="#d4af37" strokeWidth={2} fill="none" />
                   <circle cx={e.mx} cy={e.my} r={4} fill="#d4af37" />
@@ -82,13 +144,20 @@ export default function VisualFamilyTree({ members, onDeleteMember, onEditMember
               ))}
             </svg>
 
-            {layout.nodes.map(({ member: m, x, y, badge }) => (
+            {placed.map(({ member: m, x, y, badge }) => (
               <div
                 key={m.id}
                 onMouseEnter={() => setHovered(m.id)}
                 onMouseLeave={() => setHovered(null)}
-                onClick={() => onEditMember(m)}
-                className={`absolute flex cursor-pointer items-center gap-3 rounded-xl border bg-[#14110a] px-3 transition-colors ${m.deceased ? 'opacity-75' : ''} ${hovered === m.id ? 'border-[#d4af37]' : 'border-[#2a2418]'}`}
+                onPointerDown={e => onPointerDown(e, m.id)}
+                onPointerMove={onPointerMove}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+                onClick={() => {
+                  if (movedRef.current) { movedRef.current = false; return }
+                  onEditMember(m)
+                }}
+                className={`absolute flex cursor-grab touch-none items-center gap-3 rounded-xl border bg-[#14110a] px-3 transition-colors active:cursor-grabbing ${m.deceased ? 'opacity-75' : ''} ${hovered === m.id ? 'border-[#d4af37]' : 'border-[#2a2418]'}`}
                 style={{ left: x, top: y, width: CARD_W, height: CARD_H, borderTop: `3px solid ${ACCENT[m.gender]}` }}
               >
                 {m.photoUrl ? (
@@ -131,7 +200,7 @@ export default function VisualFamilyTree({ members, onDeleteMember, onEditMember
         <span><i className="mr-1 inline-block h-2 w-4 rounded-sm" style={{ background: ACCENT.male }} />Male</span>
         <span><i className="mr-1 inline-block h-2 w-4 rounded-sm" style={{ background: ACCENT.female }} />Female</span>
         <span><i className="mr-1 inline-block h-2 w-4 rounded-sm" style={{ background: ACCENT.other }} />Other</span>
-        <span>● Gold = marriage · children hang from their parents&apos; marriage · ◎ focus · −/+ collapse a branch · click a card to edit</span>
+        <span>● Gold = marriage · drag a card to place it · ◎ focus · −/+ collapse a branch</span>
       </div>
     </div>
   )
