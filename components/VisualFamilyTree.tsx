@@ -14,6 +14,7 @@ interface VisualTreeProps {
 
 const ACCENT: Record<FamilyMember['gender'], string> = { male: '#7fb2ff', female: '#f0a0c8', other: '#d4af37' }
 const POSITIONS_KEY = 'family-tree-manual-positions'
+const LOCKS_KEY = 'family-tree-locked-cards'
 
 type Offsets = Record<string, { dx: number; dy: number }>
 
@@ -26,6 +27,15 @@ function loadOffsets(): Offsets {
   }
 }
 
+function loadLocks(): Record<string, { x: number; y: number }> {
+  if (typeof window === 'undefined') return {}
+  try {
+    return JSON.parse(window.localStorage.getItem(LOCKS_KEY) ?? '{}') as Record<string, { x: number; y: number }>
+  } catch {
+    return {}
+  }
+}
+
 export default function VisualFamilyTree({ members, onDeleteMember, onEditMember }: VisualTreeProps) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [zoom, setZoom] = useState(1)
@@ -33,6 +43,7 @@ export default function VisualFamilyTree({ members, onDeleteMember, onEditMember
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [focusId, setFocusId] = useState<string | null>(null)
   const [offsets, setOffsets] = useState<Offsets>(() => loadOffsets())
+  const [locked, setLocked] = useState<Record<string, { x: number; y: number }>>(() => loadLocks())
   const dragRef = useRef<{ id: string; startX: number; startY: number; dx: number; dy: number } | null>(null)
   const movedRef = useRef(false)
 
@@ -41,15 +52,18 @@ export default function VisualFamilyTree({ members, onDeleteMember, onEditMember
   const toggle = (id: string) => setCollapsed(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const focusName = focusId ? members.find(m => m.id === focusId)?.name : null
 
-  // hand-placed cards keep an offset from their computed position
+  // hand-placed cards keep an offset from their computed position; locked
+  // cards keep an absolute position, so later layout changes cannot move them
   const placed: PlacedNode[] = useMemo(
     () => layout.nodes.map(n => {
+      const pin = locked[n.member.id]
+      if (pin) return { ...n, x: pin.x, y: pin.y }
       const o = offsets[n.member.id]
       return o ? { ...n, x: n.x + o.dx, y: n.y + o.dy } : n
     }),
-    [layout, offsets]
+    [layout, offsets, locked]
   )
-  const hasManual = placed.some(n => offsets[n.member.id])
+  const hasManual = placed.some(n => offsets[n.member.id] || locked[n.member.id])
   const edges = useMemo(
     () => (hasManual ? edgesFromPositions(placed, view.visible) : layout.edges),
     [hasManual, placed, layout.edges, view.visible]
@@ -61,6 +75,17 @@ export default function VisualFamilyTree({ members, onDeleteMember, onEditMember
   useEffect(() => {
     try { window.localStorage.setItem(POSITIONS_KEY, JSON.stringify(offsets)) } catch { /* storage may be full */ }
   }, [offsets])
+
+  useEffect(() => {
+    try { window.localStorage.setItem(LOCKS_KEY, JSON.stringify(locked)) } catch { /* storage may be full */ }
+  }, [locked])
+
+  const toggleLock = (id: string, x: number, y: number) => setLocked(prev => {
+    const next = { ...prev }
+    if (next[id]) delete next[id]
+    else next[id] = { x, y }
+    return next
+  })
 
   if (members.length === 0) {
     return (
@@ -113,7 +138,7 @@ export default function VisualFamilyTree({ members, onDeleteMember, onEditMember
           </button>
           <button onClick={() => setZoom(1)} className={zoomBtn}>100%</button>
           {hasManual && (
-            <button onClick={() => setOffsets({})} className={zoomBtn} title="Put every card back where the layout puts it">
+            <button onClick={() => { setOffsets({}); setLocked({}) }} className={zoomBtn} title="Put every card back where the layout puts it, and unlock them">
               Reset positions
             </button>
           )}
@@ -149,7 +174,7 @@ export default function VisualFamilyTree({ members, onDeleteMember, onEditMember
                 key={m.id}
                 onMouseEnter={() => setHovered(m.id)}
                 onMouseLeave={() => setHovered(null)}
-                onPointerDown={e => onPointerDown(e, m.id)}
+                onPointerDown={e => { if (!locked[m.id]) onPointerDown(e, m.id) }}
                 onPointerMove={onPointerMove}
                 onPointerUp={endDrag}
                 onPointerCancel={endDrag}
@@ -157,7 +182,7 @@ export default function VisualFamilyTree({ members, onDeleteMember, onEditMember
                   if (movedRef.current) { movedRef.current = false; return }
                   onEditMember(m)
                 }}
-                className={`absolute flex cursor-grab touch-none items-center gap-3 rounded-xl border bg-[#14110a] px-3 transition-colors active:cursor-grabbing ${m.deceased ? 'opacity-75' : ''} ${hovered === m.id ? 'border-[#d4af37]' : 'border-[#2a2418]'}`}
+                className={`absolute flex touch-none items-center gap-3 rounded-xl border bg-[#14110a] px-3 transition-colors ${locked[m.id] ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'} ${m.deceased ? 'opacity-75' : ''} ${hovered === m.id ? 'border-[#d4af37]' : 'border-[#2a2418]'}`}
                 style={{ left: x, top: y, width: CARD_W, height: CARD_H, borderTop: `3px solid ${ACCENT[m.gender]}` }}
               >
                 {m.photoUrl ? (
@@ -173,8 +198,17 @@ export default function VisualFamilyTree({ members, onDeleteMember, onEditMember
                   </span>
                   {badge && <span className="mt-0.5 inline-block rounded-full bg-[#2a2310] px-2 text-[10px] font-semibold text-[#d4af37]">{badge}</span>}
                 </span>
+                {locked[m.id] && hovered !== m.id && (
+                  <span className="pointer-events-none absolute right-1 top-1 text-xs text-[#d4af37]" title="Position locked">🔒</span>
+                )}
                 {hovered === m.id && (
                   <span className="absolute right-1 top-1 flex gap-1">
+                    <button
+                      onClick={e => { e.stopPropagation(); toggleLock(m.id, x, y) }}
+                      className={`rounded px-1.5 text-xs hover:bg-[#3a3220] ${locked[m.id] ? 'bg-[#3a3220] text-[#d4af37]' : 'bg-[#2a2310] text-[#d4af37]'}`}
+                      title={locked[m.id] ? 'Unlock this card (allow dragging)' : 'Lock this card in place'}
+                      aria-label={locked[m.id] ? `Unlock ${m.name}` : `Lock ${m.name}`}
+                    >{locked[m.id] ? '🔒' : '🔓'}</button>
                     <button onClick={e => { e.stopPropagation(); setFocusId(focusId === m.id ? null : m.id) }} className="rounded bg-[#2a2310] px-1.5 text-xs text-[#d4af37] hover:bg-[#3a3220]" title="Focus on this person's line" aria-label={`Focus on ${m.name}`}>◎</button>
                     <button
                       onClick={e => { e.stopPropagation(); if (window.confirm(`Delete ${m.name}?`)) onDeleteMember(m.id) }}
@@ -200,7 +234,7 @@ export default function VisualFamilyTree({ members, onDeleteMember, onEditMember
         <span><i className="mr-1 inline-block h-2 w-4 rounded-sm" style={{ background: ACCENT.male }} />Male</span>
         <span><i className="mr-1 inline-block h-2 w-4 rounded-sm" style={{ background: ACCENT.female }} />Female</span>
         <span><i className="mr-1 inline-block h-2 w-4 rounded-sm" style={{ background: ACCENT.other }} />Other</span>
-        <span>● Gold = marriage · drag a card to place it · ◎ focus · −/+ collapse a branch</span>
+        <span>● Gold = marriage · drag a card to place it · 🔒 locks a card in place · ◎ focus · −/+ collapse a branch</span>
       </div>
     </div>
   )
