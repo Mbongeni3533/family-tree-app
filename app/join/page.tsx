@@ -12,7 +12,7 @@ function Join() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   const [info, setInfo] = useState<{ network_name: string; person_name: string } | null | undefined>(undefined)
   const [err, setErr] = useState<string | null>(null)
-  const [useEmail, setUseEmail] = useState(false)
+  const [useEmail, setUseEmail] = useState(true)
 
   useEffect(() => {
     if (!isCloudConfigured) return

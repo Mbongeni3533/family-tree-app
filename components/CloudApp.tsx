@@ -26,7 +26,7 @@ type HistoryEntry = { label: string; undo: () => Promise<void>; redo: () => Prom
 export default function CloudApp() {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(false)
-  const [useEmail, setUseEmail] = useState(false)
+  const [useEmail, setUseEmail] = useState(true)
   useEffect(() => {
     const sb = getClient()
     sb.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true) })
@@ -38,12 +38,12 @@ export default function CloudApp() {
     return useEmail
       ? <AuthForm
           title="Family Tree"
-          subtitle="Sign in with an email address and password."
+          subtitle="Sign in with your email and password, or create an account to start your family's tree."
           onUseNationalId={() => setUseEmail(false)}
         />
       : <NidAuthForm
           title="Family Tree"
-          subtitle="Sign in with your country, National ID and PIN. Relatives join through an invite link from someone already in the tree."
+          subtitle="Sign in with your country, National ID and PIN."
           onUseEmail={() => setUseEmail(true)}
         />
   }
