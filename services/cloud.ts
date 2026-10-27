@@ -37,6 +37,9 @@ export function rowsToMembers(people: PersonRow[], marriages: MarriageRow[]): Fa
 const friendlyError = (message: string) => {
   if (message.includes('people_check1')) return 'That person is already recorded as the other parent of this card.'
   if (message.includes('people_check')) return 'A person cannot be their own parent.'
+  if (message.includes('both people must be in this network')) {
+    return 'That person is not part of this tree according to the database. Refresh the page (the header has a Refresh link) and try again.'
+  }
   return message.replace(/^CONFLICT:\s*/, '')
 }
 
