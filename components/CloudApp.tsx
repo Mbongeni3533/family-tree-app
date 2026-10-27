@@ -62,10 +62,11 @@ function Network({ session }: { session: Session }) {
   const run = async (fn: () => Promise<void>) => { try { setErr(null); await fn() } catch (e) { setErr(e instanceof Error ? e.message : 'Something went wrong') } }
   const reload = useCallback(async (id?: string) => {
     const nid = id ?? net?.id
-    if (!nid) return
+    if (!nid) return null
     const t = await cloud.fetchTree(nid)
     setMembers(t.members); setFlags(t.flags)
     setSelected(s => (s ? t.members.find(m => m.id === s.id) ?? null : null))
+    return t
   }, [net?.id])
 
   // One-time network lookup on mount; the state updates happen in the async
@@ -141,7 +142,15 @@ function Network({ session }: { session: Session }) {
         // re-using the id keeps any relationship added afterwards pointing at the same card
         redo: async () => { await cloud.addPerson(net.id, m, self, asParentOf, id) },
       })
-      setMode('view'); setPrefill(null); await reload()
+      setMode('view'); setPrefill(null)
+      const tree = await reload()
+      // Adding a parent should leave you ON the new card, so the next
+      // generation is one click away instead of a hunt through the tree.
+      const created = tree?.members.find(m => m.id === id)
+      if (asParentOf && created) {
+        setSelected(created)
+        setNotice(`${created.name} added. Press “+ Parent” again to go one generation further back.`)
+      }
     })
   }
 
@@ -248,7 +257,7 @@ function Network({ session }: { session: Session }) {
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-[#9a917c]">Link-Leverage · {isFounder ? 'Founder' : 'Member'}</p>
             <h1 className="gold-text text-4xl font-bold">{net.name} family tree</h1>
-            <p className="mt-1 text-sm text-[#9a917c]">{session.user.email} · {members.filter(m => !m.hidden).length} people · <button className="text-[#d4af37] hover:underline" onClick={() => run(() => reload())}>Refresh</button> · <button className="text-[#d4af37] hover:underline" onClick={() => getClient().auth.signOut()}>Sign out</button></p>
+            <p className="mt-1 text-sm text-[#9a917c]">{session.user.email} · {members.filter(m => !m.hidden).length} people · <button className="text-[#d4af37] hover:underline" onClick={() => run(async () => { await reload() })}>Refresh</button> · <button className="text-[#d4af37] hover:underline" onClick={() => getClient().auth.signOut()}>Sign out</button></p>
           </div>
           <div className="flex gap-1 rounded-xl border border-[#2a2418] bg-[#14110a] p-1">
             {([['dashboard', 'Dashboard'], ['list', 'List'], ['tree', 'Visual Tree'], ['network', `Network${flags.length && isFounder ? ` (${flags.length})` : ''}`]] as const).map(([k, l]) => (
@@ -293,6 +302,7 @@ function Network({ session }: { session: Session }) {
                     asParentOf={prefill?.asParentOf}
                     linkCandidates={linkCandidates}
                     onLinkExisting={prefill ? linkExisting : undefined}
+                    compact={!!prefill}
                   />
                 </>
               ) : mode === 'edit' && detail ? (
@@ -344,7 +354,11 @@ function Network({ session }: { session: Session }) {
                   <div className="space-y-2 border-t border-[#2a2418] pt-3">
                     <p className="text-xs uppercase tracking-widest text-[#7a725f]">Grow this branch</p>
                     <div className="flex flex-wrap gap-2">
-                      <button className={btn} onClick={() => startAdd({ asParentOf: detail.id })}>+ Parent</button>
+                      {detail.parentId && detail.parent2Id ? (
+                        <span className="text-xs text-[#7a725f]">Both parent slots are filled.</span>
+                      ) : (
+                        <button className={btn} onClick={() => startAdd({ asParentOf: detail.id })}>+ Parent</button>
+                      )}
                       <button className={btn} onClick={() => startAdd({ spouseIds: [detail.id] })}>+ Partner</button>
                       <button className={btn} onClick={() => startAdd({ parentId: detail.id })}>+ Child</button>
                     </div>

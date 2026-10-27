@@ -23,12 +23,14 @@ interface AddPersonFormProps {
   /** Cards that could be linked instead of creating a duplicate. */
   linkCandidates?: FamilyMember[]
   onLinkExisting?: (id: string) => void
+  /** Collapse the optional fields, for quickly chaining ancestors upward. */
+  compact?: boolean
 }
 
 const field = 'w-full px-3 py-2 border border-[#2a2418] rounded-md text-[#f5f0e1]'
 const label = 'block text-sm font-medium text-[#e6dfc8] mb-1'
 
-export default function AddPersonForm({ members, onAdd, onCancel, initialParentId, initialSpouseIds, asParentOf, linkCandidates, onLinkExisting }: AddPersonFormProps) {
+export default function AddPersonForm({ members, onAdd, onCancel, initialParentId, initialSpouseIds, asParentOf, linkCandidates, onLinkExisting, compact }: AddPersonFormProps) {
   const [formData, setFormData] = useState({
     name: '',
     gender: 'other' as FamilyMember['gender'],
@@ -190,6 +192,9 @@ export default function AddPersonForm({ members, onAdd, onCancel, initialParentI
         <DatePartsInput value={birth} onChange={setBirth} />
       </div>
 
+      <details open={!compact} className="rounded-lg border border-[#2a2418] p-3">
+        <summary className="cursor-pointer text-sm text-[#d4af37]">More details (gender, places, photo, parents, partners, notes)</summary>
+        <div className="mt-3 space-y-4">
       <div>
         <label className={label}>Birth area</label>
         <PlaceInput
@@ -323,6 +328,9 @@ export default function AddPersonForm({ members, onAdd, onCancel, initialParentI
           rows={2}
         />
       </div>
+
+        </div>
+      </details>
 
       {error && <p className="text-sm text-[#ff8a8a]">{error}</p>}
 
