@@ -37,8 +37,14 @@ export function rowsToMembers(people: PersonRow[], marriages: MarriageRow[]): Fa
 const friendlyError = (message: string) => {
   if (message.includes('people_check1')) return 'That person is already recorded as the other parent of this card.'
   if (message.includes('people_check')) return 'A person cannot be their own parent.'
+  if (message.includes('one of those two people no longer exists')) {
+    return 'One of those two cards no longer exists. Refresh the page (the header has a Refresh link) and try again.'
+  }
+  if (message.includes('those two people are in different family trees')) {
+    return 'Those two cards belong to different family trees. Refresh the page and try again.'
+  }
   if (message.includes('both people must be in this network')) {
-    return 'That person is not part of this tree according to the database. Refresh the page (the header has a Refresh link) and try again.'
+    return 'That person is not part of this tree according to the database. Refresh the page and try again.'
   }
   return message.replace(/^CONFLICT:\s*/, '')
 }

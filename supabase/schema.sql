@@ -1,4 +1,4 @@
-﻿-- =====================================================================
+-- =====================================================================
 -- Family Tree network schema (Supabase / Postgres 15+)
 -- Run once in: Supabase Dashboard -> SQL Editor -> New query -> paste -> Run
 --
@@ -144,9 +144,23 @@ end $$;
 create trigger people_cycle before insert or update of parent_id, parent2_id on public.people for each row execute function public.check_people_cycle();
 
 create function public.check_marriage_network() returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  net_a uuid;
+  net_b uuid;
 begin
-  if (select count(*) from people where id in (new.person_a, new.person_b) and network_id = new.network_id) <> 2 then
-    raise exception 'both people must be in this network'; end if;
+  select network_id into net_a from people where id = new.person_a;
+  select network_id into net_b from people where id = new.person_b;
+
+  if net_a is null or net_b is null then
+    raise exception 'one of those two people no longer exists — refresh the tree and try again';
+  end if;
+
+  if net_a <> net_b then
+    raise exception 'those two people are in different family trees';
+  end if;
+
+  -- trust the people, not whatever network the caller passed
+  new.network_id := net_a;
   return new;
 end $$;
 create trigger marriage_network before insert on public.marriages for each row execute function public.check_marriage_network();
