@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import AuthForm from '@/components/AuthForm'
-import NidAuthForm from '@/components/NidAuthForm'
 import Dashboard from '@/components/Dashboard'
 import FamilyTree from '@/components/FamilyTree'
 import VisualFamilyTree from '@/components/VisualFamilyTree'
@@ -26,7 +25,6 @@ type HistoryEntry = { label: string; undo: () => Promise<void>; redo: () => Prom
 export default function CloudApp() {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(false)
-  const [useEmail, setUseEmail] = useState(true)
   useEffect(() => {
     const sb = getClient()
     sb.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true) })
@@ -35,17 +33,10 @@ export default function CloudApp() {
   }, [])
   if (!ready) return <main className="min-h-screen bg-[#0b0b0c] p-8 text-[#9a917c]">Loading…</main>
   if (!session) {
-    return useEmail
-      ? <AuthForm
-          title="Family Tree"
-          subtitle="Sign in with your email and password, or create an account to start your family's tree."
-          onUseNationalId={() => setUseEmail(false)}
-        />
-      : <NidAuthForm
-          title="Family Tree"
-          subtitle="Sign in with your country, National ID and PIN."
-          onUseEmail={() => setUseEmail(true)}
-        />
+    return <AuthForm
+      title="Family Tree"
+      subtitle="Sign in with your email and password, or create an account to start your family's tree. Relatives join through an invite link from someone already in the tree."
+    />
   }
   return <Network session={session} />
 }
