@@ -70,8 +70,8 @@ const photoValue = async (url?: string) => {
 // One call = one transaction: the card, its marriages and (when adding a
 // parent) the link to the child are written together, so a failure cannot
 // leave half a person behind.
-export async function addPerson(networkId: string, m: Omit<FamilyMember, 'id'>, claim: boolean, asParentOf?: string): Promise<string> {
-  const id = crypto.randomUUID()
+export async function addPerson(networkId: string, m: Omit<FamilyMember, 'id'>, claim: boolean, asParentOf?: string, explicitId?: string): Promise<string> {
+  const id = explicitId ?? crypto.randomUUID()
   must(await getClient().rpc('add_person', {
     p_network: networkId,
     p_id: id,

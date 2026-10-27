@@ -20,6 +20,8 @@ import type { FamilyMember } from '@/types/family'
 const btn = 'rounded-lg border border-[#d4af37] px-3 py-1.5 text-sm text-[#d4af37] hover:bg-[#2a2310] disabled:opacity-40'
 const gold = 'rounded-lg bg-[#d4af37] px-4 py-2 font-semibold text-[#0b0b0c] hover:bg-[#f0cf65]'
 
+type HistoryEntry = { label: string; undo: () => Promise<void>; redo: () => Promise<void> }
+
 export default function CloudApp() {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(false)
@@ -49,6 +51,8 @@ function Network({ session }: { session: Session }) {
   const [link, setLink] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [prefill, setPrefill] = useState<{ asParentOf?: string; parentId?: string; spouseIds?: string[] } | null>(null)
+  const [history, setHistory] = useState<HistoryEntry[]>([])
+  const [future, setFuture] = useState<HistoryEntry[]>([])
 
   const run = async (fn: () => Promise<void>) => { try { setErr(null); await fn() } catch (e) { setErr(e instanceof Error ? e.message : 'Something went wrong') } }
   const reload = useCallback(async (id?: string) => {
@@ -64,6 +68,41 @@ function Network({ session }: { session: Session }) {
   /* eslint-disable react-hooks/set-state-in-effect -- mount-time data fetch */
   useEffect(() => { run(async () => { const n = await cloud.myNetwork(); setNet(n); if (n) await reload(n.id) }) }, []) // eslint-disable-line react-hooks/exhaustive-deps
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  // ---- undo / redo -------------------------------------------------------
+  const record = (entry: HistoryEntry) => { setHistory(h => [...h, entry]); setFuture([]) }
+
+  // Re-applies a card exactly as it was; the fresh copy supplies updated_at.
+  const revert = async (target: FamilyMember) => {
+    const fresh = (await cloud.fetchTree(net!.id)).members
+    const current = fresh.find(m => m.id === target.id)
+    if (!current) throw new Error(`“${target.name}” no longer exists, so that step cannot be undone.`)
+    await cloud.updatePerson(current, target)
+  }
+
+  const undoLast = () => {
+    const entry = history[history.length - 1]
+    if (!entry) return
+    run(async () => {
+      await entry.undo()
+      setHistory(h => h.slice(0, -1))
+      setFuture(f => [...f, entry])
+      setNotice(`Undone: ${entry.label}.`)
+      await reload()
+    })
+  }
+
+  const redoLast = () => {
+    const entry = future[future.length - 1]
+    if (!entry) return
+    run(async () => {
+      await entry.redo()
+      setFuture(f => f.slice(0, -1))
+      setHistory(h => [...h, entry])
+      setNotice(`Redone: ${entry.label}.`)
+      await reload()
+    })
+  }
 
   const isFounder = net?.role === 'founder'
   const me = members.find(m => m.claimedBy === uid)
@@ -89,7 +128,16 @@ function Network({ session }: { session: Session }) {
 
   const add = (self: boolean) => async (m: Omit<FamilyMember, 'id'>, asParentOf?: string) => {
     if (members.some(x => x.name.trim().toLowerCase() === m.name.trim().toLowerCase()) && !window.confirm(`Someone named “${m.name}” is already in this tree. Add another card anyway? (If it is the same person, cancel and link to the existing card.)`)) return
-    await run(async () => { await cloud.addPerson(net.id, m, self, asParentOf); setMode('view'); setPrefill(null); await reload() })
+    await run(async () => {
+      const id = await cloud.addPerson(net.id, m, self, asParentOf)
+      record({
+        label: `add ${m.name}`,
+        undo: async () => { await cloud.deletePerson(id) },
+        // re-using the id keeps any relationship added afterwards pointing at the same card
+        redo: async () => { await cloud.addPerson(net.id, m, self, asParentOf, id) },
+      })
+      setMode('view'); setPrefill(null); await reload()
+    })
   }
 
   // Opens the add form with the relationship already pointing the right way.
@@ -127,6 +175,10 @@ function Network({ session }: { session: Session }) {
     const existing = members.find(m => m.id === existingId)
     if (!existing) throw new Error('That card no longer exists')
 
+    let before: FamilyMember | null = null
+    let after: FamilyMember | null = null
+    let label = ''
+
     if (prefill?.asParentOf) {
       const child = members.find(m => m.id === prefill.asParentOf)
       if (!child) throw new Error('That card no longer exists')
@@ -135,12 +187,13 @@ function Network({ session }: { session: Session }) {
         setMode('view'); setPrefill(null); return
       }
       if (child.parentId && child.parent2Id) throw new Error(`${child.name} already has two parents`)
-      await cloud.updatePerson(child, {
+      before = child
+      after = {
         ...child,
         parentId: child.parentId ?? existingId,
         parent2Id: child.parentId ? (child.parent2Id ?? existingId) : child.parent2Id,
-      })
-      setNotice(`Linked ${existing.name} as a parent of ${child.name}.`)
+      }
+      label = `linked ${existing.name} as a parent of ${child.name}`
     } else if (prefill?.parentId) {
       if (existing.parentId === prefill.parentId || existing.parent2Id === prefill.parentId) {
         const anchorName = members.find(m => m.id === prefill.parentId)?.name ?? 'that person'
@@ -148,23 +201,29 @@ function Network({ session }: { session: Session }) {
         setMode('view'); setPrefill(null); return
       }
       if (existing.parentId && existing.parent2Id) throw new Error(`${existing.name} already has two parents`)
-      await cloud.updatePerson(existing, {
+      const anchorName = members.find(m => m.id === prefill.parentId)?.name ?? 'the selected person'
+      before = existing
+      after = {
         ...existing,
         parentId: existing.parentId ?? prefill.parentId,
         parent2Id: existing.parentId ? (existing.parent2Id ?? prefill.parentId) : existing.parent2Id,
-      })
-      const anchorName = members.find(m => m.id === prefill.parentId)?.name ?? 'the selected person'
-      setNotice(`Linked ${existing.name} as a child of ${anchorName}.`)
+      }
+      label = `linked ${existing.name} as a child of ${anchorName}`
     } else if (prefill?.spouseIds?.length) {
       const anchor = members.find(m => m.id === prefill.spouseIds![0])
       if (!anchor) throw new Error('That card no longer exists')
       if ((anchor.spouseIds ?? []).includes(existingId)) throw new Error('Those two are already partners')
-      await cloud.updatePerson(anchor, { ...anchor, spouseIds: [...(anchor.spouseIds ?? []), existingId] })
-      setNotice(`Linked ${existing.name} and ${anchor.name} as partners.`)
+      before = anchor
+      after = { ...anchor, spouseIds: [...(anchor.spouseIds ?? []), existingId] }
+      label = `linked ${existing.name} and ${anchor.name} as partners`
     } else {
       throw new Error('Open a card and use + Parent, + Partner or + Child to link a relative')
     }
 
+    if (!before || !after) throw new Error('Nothing to link')
+    await cloud.updatePerson(before, after)
+    record({ label, undo: () => revert(before!), redo: () => revert(after!) })
+    setNotice(`${label.charAt(0).toUpperCase()}${label.slice(1)}.`)
     setMode('view')
     setPrefill(null)
     await reload()
@@ -204,7 +263,11 @@ function Network({ session }: { session: Session }) {
         <div className="mb-8 rounded-xl border border-[#2a2418] bg-[#14110a] p-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <SearchFilter searchQuery={q} selectedGender={gender} onSearchChange={setQ} onGenderChange={setGender} />
-            <button className={gold} onClick={() => { setSelected(null); setMode('add') }}>+ Add Person</button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button className={btn} disabled={!history.length} onClick={undoLast} title="Undo the last change">↶ Undo{history.length ? ` (${history.length})` : ''}</button>
+              <button className={btn} disabled={!future.length} onClick={redoLast} title="Redo the last undone change">↷ Redo{future.length ? ` (${future.length})` : ''}</button>
+              <button className={gold} onClick={() => { setSelected(null); setMode('add') }}>+ Add Person</button>
+            </div>
           </div>
           <div className="mt-4"><ExportButton members={filtered} /></div>
         </div>
@@ -231,7 +294,12 @@ function Network({ session }: { session: Session }) {
                 <>
                   <h2 className="mb-4 text-xl font-bold">Edit {detail.name}</h2>
                   <EditPersonForm member={detail} members={members.filter(m => !m.hidden)} onCancel={() => setMode('view')}
-                    onUpdate={m => run(async () => { await cloud.updatePerson(detail, m); setMode('view'); await reload() })} />
+                    onUpdate={m => run(async () => {
+                      await cloud.updatePerson(detail, m)
+                      record({ label: `edited ${m.name}`, undo: () => revert(detail), redo: () => revert(m) })
+                      setMode('view')
+                      await reload()
+                    })} />
                 </>
               ) : detail ? (
                 <div className="space-y-3">
