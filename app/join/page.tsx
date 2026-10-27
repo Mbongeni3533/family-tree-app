@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type { Session } from '@supabase/supabase-js'
 import AuthForm from '@/components/AuthForm'
+import NidAuthForm from '@/components/NidAuthForm'
 import { getClient, isCloudConfigured } from '@/lib/supabase'
 
 function Join() {
@@ -11,6 +12,7 @@ function Join() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   const [info, setInfo] = useState<{ network_name: string; person_name: string } | null | undefined>(undefined)
   const [err, setErr] = useState<string | null>(null)
+  const [useEmail, setUseEmail] = useState(false)
 
   useEffect(() => {
     if (!isCloudConfigured) return
@@ -29,7 +31,13 @@ function Join() {
   if (!isCloudConfigured) return <main className={box}>This app is not connected to the cloud yet.</main>
   if (info === undefined || session === undefined) return <main className={box}>Loading…</main>
   if (!info) return <main className={box}>This invite link is invalid, already used, or expired. Ask your relative for a new one.</main>
-  if (!session) return <AuthForm title={`Join the ${info.network_name} family tree`} subtitle={`You were invited to claim the card “${info.person_name}” and add your own relatives.`} />
+  if (!session) {
+    const title = `Join the ${info.network_name} family tree`
+    const subtitle = `You were invited to claim the card “${info.person_name}” and add your own relatives.`
+    return useEmail
+      ? <AuthForm title={title} subtitle={subtitle} onUseNationalId={() => setUseEmail(false)} />
+      : <NidAuthForm title={title} subtitle={subtitle} onUseEmail={() => setUseEmail(true)} />
+  }
   return (
     <main className={box}>
       <div className="max-w-md space-y-4 rounded-xl border border-[#2a2418] bg-[#14110a] p-8">

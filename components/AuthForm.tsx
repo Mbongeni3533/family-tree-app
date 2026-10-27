@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { getClient } from '@/lib/supabase'
 
-export default function AuthForm({ title, subtitle }: { title: string; subtitle?: string }) {
+export default function AuthForm({ title, subtitle, onUseNationalId }: { title: string; subtitle?: string; onUseNationalId?: () => void }) {
   const [mode, setMode] = useState<'in' | 'up'>('up')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -43,6 +43,11 @@ export default function AuthForm({ title, subtitle }: { title: string; subtitle?
         {msg && <p className="text-sm text-[#d4af37]">{msg}</p>}
         <button disabled={busy || (mode === 'up' && !consent)} className="w-full rounded-lg bg-[#d4af37] py-2 font-semibold text-[#0b0b0c] hover:bg-[#f0cf65] disabled:opacity-40">{mode === 'up' ? 'Create account' : 'Sign in'}</button>
         <button type="button" onClick={() => setMode(mode === 'up' ? 'in' : 'up')} className="w-full text-sm text-[#d4af37] hover:underline">{mode === 'up' ? 'Already have an account? Sign in' : 'New here? Create an account'}</button>
+        {onUseNationalId && (
+          <button type="button" onClick={onUseNationalId} className="w-full text-xs text-[#9a917c] hover:underline">
+            Use National ID and PIN instead
+          </button>
+        )}
       </form>
     </main>
   )
